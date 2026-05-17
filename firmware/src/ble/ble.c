@@ -26,6 +26,7 @@ static const char *TAG = "ble";
 
 static volatile uint16_t s_conn_handle = BLE_HS_CONN_HANDLE_NONE;
 static volatile bool     s_subscribed  = false;
+static volatile bool     s_advertising = false;
 static uint16_t          s_tx_handle;
 static ble_write_cb_t    s_write_cb;
 static char              s_device_name[32];
@@ -118,6 +119,8 @@ static void start_advertising(void)
                            &params, NULL, NULL);
     if (rc != 0 && rc != BLE_HS_EALREADY) {
         ESP_LOGE(TAG, "adv start: %d", rc);
+    } else {
+        s_advertising = true;
     }
 }
 
@@ -132,6 +135,7 @@ static int gap_event_cb(struct ble_gap_event *event, void *arg)
         if (event->connect.status == 0) {
             s_conn_handle = event->connect.conn_handle;
             s_subscribed  = false;
+            s_advertising = false;
             ESP_LOGI(TAG, "connected  handle=%d", s_conn_handle);
         } else {
             ESP_LOGW(TAG, "connect failed  status=%d", event->connect.status);
@@ -243,4 +247,9 @@ esp_err_t ble_notify(const uint8_t *data, uint16_t len)
 bool ble_connected(void)
 {
     return s_conn_handle != BLE_HS_CONN_HANDLE_NONE;
+}
+
+bool ble_advertising(void)
+{
+    return s_advertising;
 }

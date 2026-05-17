@@ -23,3 +23,4 @@ esp_err_t ble_init(const char *device_name, ble_write_cb_t on_write);
 esp_err_t ble_notify(const uint8_t *data, uint16_t len);
 
 bool ble_connected(void);
+bool ble_advertising(void);

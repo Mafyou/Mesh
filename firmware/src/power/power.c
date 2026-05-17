@@ -36,8 +36,10 @@ void power_activity(void)
 
 void power_maybe_sleep(void)
 {
-    /* Stay awake while a BLE client is connected */
-    if (ble_connected()) {
+    /* Stay awake while BLE is active (connected or advertising) so the device
+     * remains discoverable. esp_light_sleep_start() suspends the BLE controller,
+     * which would stop advertisements and hide the node from scans. */
+    if (ble_connected() || ble_advertising()) {
         s_last_activity_us = esp_timer_get_time();
         return;
     }

@@ -1,3 +1,6 @@
+using System.Text.Json;
+using System.Text.Json.Serialization;
+
 namespace Mesh.Mobile.Core.Services;
 
 public class SettingsService
@@ -69,8 +72,59 @@ public class SettingsService
         return string.Join(',', normalized);
     }
 
+    public void ResetAll()
+    {
+        Preferences.Default.Remove(KeyAlias);
+        Preferences.Default.Remove(KeyLastNodeId);
+        Preferences.Default.Remove(KeyPreferredNodeIds);
+        Preferences.Default.Remove(KeyNotificationsEnabled);
+    }
+
+    public string ExportToJson()
+    {
+        var dto = new SettingsDto
+        {
+            Alias = UserAlias,
+            PreferredNodeIds = [.. PreferredNodeIds],
+            NotificationsEnabled = NotificationsEnabled,
+        };
+        return JsonSerializer.Serialize(dto, SettingsDtoContext.Default.SettingsDto);
+    }
+
+    public bool ImportFromJson(string json)
+    {
+        try
+        {
+            var dto = JsonSerializer.Deserialize(json, SettingsDtoContext.Default.SettingsDto);
+            if (dto is null) return false;
+
+            if (dto.Alias is not null)
+                UserAlias = dto.Alias[..Math.Min(dto.Alias.Length, 20)];
+
+            if (dto.PreferredNodeIds is not null)
+                PreferredNodeIds = dto.PreferredNodeIds;
+
+            NotificationsEnabled = dto.NotificationsEnabled;
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
     public static string FormatOutgoing(string alias, string text) =>
         string.IsNullOrWhiteSpace(alias) ? text : $"{alias}: {text}";
 
     public string FormatOutgoing(string text) => FormatOutgoing(UserAlias, text);
 }
+
+public sealed class SettingsDto
+{
+    public string? Alias { get; set; }
+    public List<string>? PreferredNodeIds { get; set; }
+    public bool NotificationsEnabled { get; set; } = true;
+}
+
+[JsonSerializable(typeof(SettingsDto))]
+internal sealed partial class SettingsDtoContext : JsonSerializerContext { }

@@ -134,6 +134,23 @@
 
                 <BoxView Style="{StaticResource Separator}" />
 
+                <!-- Données -->
+                <StackLayout Spacing="8">
+                    <Label Text="Données"
+                           Style="{StaticResource TitleCard}" />
+                    <Button Text="Exporter la configuration"
+                            Command="{Binding ExportCommand}"
+                            Style="{StaticResource ButtonSecondary}" />
+                    <Button Text="Importer une configuration"
+                            Command="{Binding ImportCommand}"
+                            Style="{StaticResource ButtonSecondary}" />
+                    <Button Text="Réinitialiser"
+                            Command="{Binding ResetCommand}"
+                            Style="{StaticResource ButtonDanger}" />
+                </StackLayout>
+
+                <BoxView Style="{StaticResource Separator}" />
+
                 <!-- Enregistrer -->
                 <Button Text="Enregistrer"
                         Command="{Binding SaveCommand}"

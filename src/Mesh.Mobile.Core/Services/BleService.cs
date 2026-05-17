@@ -164,9 +164,10 @@ public class BleService
 
     private static bool AdvertisesNusService(IDevice device)
     {
-        // Accept our own firmware nodes by name prefix (fast path — no UUID parsing needed)
+        // Accept our own firmware nodes and MeshCore nodes by name prefix (fast path)
         if (!string.IsNullOrWhiteSpace(device.Name) &&
-            device.Name.StartsWith("Mesh-", StringComparison.OrdinalIgnoreCase))
+            (device.Name.StartsWith("Mesh-", StringComparison.OrdinalIgnoreCase) ||
+             device.Name.StartsWith("MeshCore-", StringComparison.OrdinalIgnoreCase)))
             return true;
 
         // Accept any device that advertises the NUS service UUID.

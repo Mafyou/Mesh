@@ -7,7 +7,8 @@ on:
       - 'firmware/**'
       - '.github/workflows/firmware.yml'
   workflow_dispatch:
-
+  workflow_call:
+    
 jobs:
   build-firmware:
     name: Build Firmware

@@ -78,4 +78,61 @@ public partial class SettingsPageViewModel(SettingsService settingsService, BleS
     {
         settingsService.UserAlias = UserAlias?.Trim() ?? string.Empty;
     }
+
+    [RelayCommand]
+    private async Task ResetAsync()
+    {
+        bool confirmed = await Shell.Current.DisplayAlert(
+            "Réinitialiser",
+            "Effacer toute la configuration et revenir aux réglages d'usine ?",
+            "Réinitialiser", "Annuler");
+
+        if (!confirmed) return;
+
+        settingsService.ResetAll();
+        Refresh();
+    }
+
+    [RelayCommand]
+    private async Task ExportAsync()
+    {
+        var json = settingsService.ExportToJson();
+        var path = Path.Combine(FileSystem.CacheDirectory, "mesh-config.json");
+        await File.WriteAllTextAsync(path, json);
+        await Share.Default.RequestAsync(new ShareFileRequest
+        {
+            Title = "Exporter la configuration",
+            File = new ShareFile(path, "application/json"),
+        });
+    }
+
+    [RelayCommand]
+    private async Task ImportAsync()
+    {
+        var result = await FilePicker.Default.PickAsync(new PickOptions
+        {
+            PickerTitle = "Choisir un fichier de configuration",
+            FileTypes = new FilePickerFileType(new Dictionary<DevicePlatform, IEnumerable<string>>
+            {
+                { DevicePlatform.Android, ["application/json"] },
+                { DevicePlatform.iOS,     ["public.json"] },
+                { DevicePlatform.WinUI,   [".json"] },
+            }),
+        });
+
+        if (result is null) return;
+
+        var json = await File.ReadAllTextAsync(result.FullPath);
+        bool ok = settingsService.ImportFromJson(json);
+
+        if (ok)
+        {
+            Refresh();
+            await Shell.Current.DisplayAlert("Import réussi", "Configuration restaurée.", "OK");
+        }
+        else
+        {
+            await Shell.Current.DisplayAlert("Erreur", "Fichier de configuration invalide.", "OK");
+        }
+    }
 }
