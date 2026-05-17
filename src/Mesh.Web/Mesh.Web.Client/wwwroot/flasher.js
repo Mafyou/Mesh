@@ -15,6 +15,24 @@ export function isSerialSupported() {
 }
 
 /**
+ * Wires a plain <input type="file"> to the Blazor component.
+ * Avoids using Blazor's InputFile (EventCallback<T> causes SSR serialization issues).
+ * @param {HTMLInputElement} element
+ * @param {import('@microsoft/dotnet-runtime').DotNetObject} dotnetRef
+ */
+export function setupFileInput(element, dotnetRef) {
+    element.addEventListener('change', async () => {
+        const file = element.files?.[0];
+        if (!file) return;
+        const buffer = await file.arrayBuffer();
+        const bytes = new Uint8Array(buffer);
+        let binary = '';
+        for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
+        dotnetRef.invokeMethodAsync('OnFileSelected', file.name, btoa(binary));
+    });
+}
+
+/**
  * Requests a serial port from the user, connects, and enters the ESP32
  * ROM bootloader. Returns the chip description string.
  * @param {number} baudRate

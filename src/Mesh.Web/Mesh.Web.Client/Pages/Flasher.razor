@@ -39,7 +39,7 @@ else
                     @if (_loadingFirmware) { <span>Chargement…</span> } else { <span>Charger le dernier firmware</span> }
                 </button>
                 <span style="align-self:center;color:var(--color-text-secondary);font-size:13px">ou</span>
-                <InputFile OnChange="OnFirmwareSelected" accept=".bin" class="flasher-file-input" />
+                <input type="file" accept=".bin" class="flasher-file-input" @ref="_fileInput" />
             </div>
             @if (_firmwareName is not null)
             {
@@ -112,6 +112,7 @@ else
 
     private IJSObjectReference? _module;
     private DotNetObjectReference<Flasher>? _selfRef;
+    private ElementReference _fileInput;
 
     private bool _serialSupported;
     private FlashState _state = FlashState.Idle;
@@ -132,6 +133,8 @@ else
         _module = await JS.InvokeAsync<IJSObjectReference>("import", "./flasher.js");
         _selfRef = DotNetObjectReference.Create(this);
         _serialSupported = await _module.InvokeAsync<bool>("isSerialSupported");
+        if (_serialSupported)
+            await _module.InvokeVoidAsync("setupFileInput", _fileInput, _selfRef);
         StateHasChanged();
     }
 
@@ -156,14 +159,12 @@ else
         }
     }
 
-    private async Task OnFirmwareSelected(InputFileChangeEventArgs e)
+    [JSInvokable]
+    public void OnFileSelected(string name, string base64)
     {
-        var file = e.File;
-        using var ms = new MemoryStream();
-        await using var stream = file.OpenReadStream(maxAllowedSize: 4 * 1024 * 1024);
-        await stream.CopyToAsync(ms);
-        _firmwareBytes = ms.ToArray();
-        _firmwareName = file.Name;
+        _firmwareBytes = Convert.FromBase64String(base64);
+        _firmwareName = name;
+        InvokeAsync(StateHasChanged);
     }
 
     private async Task Connect()

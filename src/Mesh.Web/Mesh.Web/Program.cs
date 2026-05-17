@@ -19,7 +19,16 @@ else
 app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
 app.UseHttpsRedirection();
 app.UseAntiforgery();
-app.UseStaticFiles();
+
+// Sert les fichiers ajoutés dynamiquement (ex. firmware) sans interférer avec MapStaticAssets
+app.MapGet("/firmware/{filename}", (string filename, IWebHostEnvironment env) =>
+{
+    var path = Path.Combine(env.WebRootPath, "firmware", filename);
+    return File.Exists(path)
+        ? Results.File(path, "application/octet-stream")
+        : Results.NotFound();
+});
+
 app.MapStaticAssets();
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode()
