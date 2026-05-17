@@ -3,6 +3,9 @@ name: Release
 on:
   push:
     branches: [main]
+    paths:
+      - 'firmware/**'
+      - 'src/Mesh.Web/**'
   workflow_dispatch:
 
 jobs:
@@ -67,3 +70,4 @@ jobs:
           app-name: ${{ secrets.AZURE_WEBAPP_NAME }}
           publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
           package: publish/web
+          startup-command: dotnet Mesh.Web.dll
