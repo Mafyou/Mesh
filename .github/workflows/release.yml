@@ -48,7 +48,7 @@ jobs:
           dotnet-version: '10.x'
 
       - name: Restore
-        run: dotnet restore src/Mesh.Web/Mesh.Web/Mesh.Web.csproj -r linux-x64
+        run: dotnet restore src/Mesh.Web/Mesh.Web/Mesh.Web.csproj
 
       - name: Download firmware artifact
         uses: actions/download-artifact@v4
@@ -73,7 +73,7 @@ jobs:
           cp android-aab/MeshUnited.aab src/Mesh.Web/Mesh.Web/wwwroot/app/MeshUnited.aab
 
       - name: Publish
-        run: dotnet publish src/Mesh.Web/Mesh.Web/Mesh.Web.csproj -c Release --self-contained true -r linux-x64 -o publish/web --no-restore
+        run: dotnet publish src/Mesh.Web/Mesh.Web/Mesh.Web.csproj -c Release -o publish/web --no-restore
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
