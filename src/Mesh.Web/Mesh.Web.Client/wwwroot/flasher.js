@@ -53,7 +53,7 @@ export async function flash(firmwareBase64, flashOffset, dotnetRef) {
     // base64 → binary string (Latin1)
     const binaryStr = atob(firmwareBase64);
 
-    await _loader.write_flash({
+    await _loader.writeFlash({
         fileArray: [{ data: binaryStr, address: flashOffset }],
         flashSize: 'keep',
         eraseAll: false,
@@ -82,7 +82,7 @@ export async function loadFirmwareFromUrl(url) {
 
 /** Resets the chip and releases the serial port. */
 export async function disconnect() {
-    try { if (_loader) await _loader.hard_reset(); } catch { /* ignore */ }
+    try { if (_loader) await _loader.hardReset(); } catch { /* ignore */ }
     await _silentDisconnect();
 }
 
