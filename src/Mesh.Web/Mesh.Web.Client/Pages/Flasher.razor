@@ -1,15 +1,23 @@
 @page "/flasher"
-@rendermode InteractiveWebAssembly
 @inject IJSRuntime JS
 @implements IAsyncDisposable
 
 <PageTitle>Flash Firmware — Mesh United</PageTitle>
 
-<div class="page-header">
-    <div>
-        <h1 class="page-title">Flash Firmware</h1>
-        <p class="page-sub">Programmez votre module ESP32 avec le firmware Mesh.Core</p>
+<div class="flasher-hero">
+    <a href="/" class="flasher-back">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true">
+            <path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/>
+        </svg>
+        Accueil
+    </a>
+    <div class="flasher-hero-icon">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="40" height="40" fill="white" aria-hidden="true">
+            <path d="M7 2v11h3v9l7-12h-4l4-8z"/>
+        </svg>
     </div>
+    <h1 class="flasher-hero-title">Flash Firmware</h1>
+    <p class="flasher-hero-sub">Programmez votre module ESP32 avec le firmware Mesh.Core via USB, directement depuis le navigateur.</p>
 </div>
 
 @if (!_serialSupported)

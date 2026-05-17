@@ -1,29 +1,63 @@
-/* ── Page header ── */
-.page-header {
-    display: flex;
-    align-items: flex-start;
-    justify-content: space-between;
-    gap: 1rem;
-    margin-bottom: 1.75rem;
-    flex-wrap: wrap;
+/* ── Hero ── */
+.flasher-hero {
+    text-align: center;
+    padding: 2.5rem 1rem 2rem;
+    position: relative;
 }
 
-.page-title {
-    font-size: 24px;
-    font-weight: 700;
-    color: var(--color-text);
-    margin: 0 0 4px;
-    letter-spacing: -0.02em;
-}
-
-.page-sub {
-    font-size: 14px;
+.flasher-back {
+    position: absolute;
+    top: 0;
+    left: 0;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    font-weight: 500;
     color: var(--color-text-secondary);
-    margin: 0;
+    text-decoration: none;
+    padding: 6px 10px;
+    border-radius: 10px;
+    transition: background 0.15s, color 0.15s;
 }
 
+.flasher-back:hover {
+    background: var(--color-bg-secondary);
+    color: var(--color-text);
+}
+
+.flasher-hero-icon {
+    width: 72px;
+    height: 72px;
+    border-radius: 20px;
+    background: linear-gradient(135deg, var(--color-primary-network) 0%, var(--color-accent-lora) 100%);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 1rem;
+    box-shadow: 0 8px 24px rgba(37, 99, 235, 0.25);
+}
+
+.flasher-hero-title {
+    font-size: 32px;
+    font-weight: 800;
+    color: var(--color-text);
+    margin: 0 0 0.5rem;
+    letter-spacing: -0.03em;
+}
+
+.flasher-hero-sub {
+    font-size: 15px;
+    color: var(--color-text-secondary);
+    margin: 0 auto 0;
+    max-width: 460px;
+    line-height: 1.6;
+}
+
+/* ── Content ── */
 .flasher-container {
     max-width: 720px;
+    margin: 0 auto;
 }
 
 .flasher-section {

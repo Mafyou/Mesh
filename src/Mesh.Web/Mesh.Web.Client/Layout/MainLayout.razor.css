@@ -1,32 +1,6 @@
 .page {
-    display: flex;
     min-height: 100vh;
     background-color: var(--color-bg);
-}
-
-.sidebar {
-    width: 240px;
-    flex-shrink: 0;
-    position: sticky;
-    top: 0;
-    height: 100vh;
-    overflow-y: auto;
-    background: linear-gradient(160deg, #2563EB 0%, #16A34A 100%);
-    display: flex;
-    flex-direction: column;
-    z-index: 100;
-}
-
-@media (prefers-color-scheme: dark) {
-    .sidebar {
-        background: linear-gradient(160deg, #1E3A5F 0%, #14532D 100%);
-    }
-}
-
-.main-content {
-    flex: 1;
-    min-width: 0;
-    overflow-x: hidden;
 }
 
 .content {
@@ -37,17 +11,6 @@
 }
 
 @media (max-width: 768px) {
-    .page {
-        flex-direction: column;
-    }
-
-    .sidebar {
-        width: 100%;
-        height: auto;
-        position: relative;
-        min-height: unset;
-    }
-
     .content {
         padding: 1rem;
     }
