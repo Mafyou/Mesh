@@ -1,135 +1,115 @@
 @page "/"
-@rendermode InteractiveServer
-@attribute [Authorize]
-@inject IMeshService Mesh
-@implements IDisposable
 
-<PageTitle>Réseau — Mesh United</PageTitle>
+<PageTitle>Mesh United — Messagerie LoRa Mesh</PageTitle>
 
-<div class="page-header">
-    <div class="page-header-left">
-        <h1 class="page-title">État du réseau</h1>
-        <p class="page-sub">Vue d'ensemble en temps réel de votre réseau Mesh LoRa</p>
+<div class="hero">
+    <div class="hero-logo">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="48" height="48" fill="white" aria-hidden="true">
+            <path d="M1 9l2 2c4.97-4.97 13.03-4.97 18 0l2-2C16.93 2.93 7.08 2.93 1 9zm8 8l3 3 3-3a4.237 4.237 0 0 0-6 0zm-4-4 2 2a7.074 7.074 0 0 1 10 0l2-2C15.14 9.14 8.87 9.14 5 13z"/>
+        </svg>
     </div>
-    <div class="live-badge @(Mesh.Nodes.Any() ? "live-badge--on" : "live-badge--off")">
-        <span class="live-dot"></span>
-        @(Mesh.Nodes.Any() ? "En ligne" : "Aucun nœud")
+    <h1 class="hero-title">Mesh United</h1>
+    <p class="hero-sub">Messagerie radio maillée sans internet ni infrastructure.<br />LoRa 868 MHz · BLE · ESP32 · Open source.</p>
+    <div class="hero-actions">
+        <a href="flasher" class="hero-btn hero-btn--primary">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true">
+                <path d="M7 2v11h3v9l7-12h-4l4-8z"/>
+            </svg>
+            Flasher l'ESP32
+        </a>
+        <a href="https://github.com/Mafyou/mesh-united" target="_blank" rel="noopener" class="hero-btn">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="16" height="16" fill="currentColor" aria-hidden="true">
+                <path d="M12 2C6.477 2 2 6.477 2 12c0 4.418 2.865 8.166 6.839 9.489.5.092.682-.217.682-.482 0-.237-.009-.868-.013-1.703-2.782.604-3.369-1.342-3.369-1.342-.454-1.155-1.11-1.463-1.11-1.463-.908-.62.069-.608.069-.608 1.003.07 1.531 1.03 1.531 1.03.892 1.529 2.341 1.087 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.11-4.555-4.943 0-1.091.39-1.984 1.029-2.683-.103-.253-.446-1.27.098-2.647 0 0 .84-.268 2.75 1.026A9.578 9.578 0 0 1 12 6.836a9.59 9.59 0 0 1 2.504.337c1.909-1.294 2.747-1.026 2.747-1.026.546 1.377.202 2.394.1 2.647.64.699 1.028 1.592 1.028 2.683 0 3.842-2.339 4.687-4.566 4.935.359.309.678.919.678 1.852 0 1.336-.012 2.415-.012 2.743 0 .267.18.578.688.48C19.138 20.163 22 16.418 22 12c0-5.523-4.477-10-10-10z"/>
+            </svg>
+            GitHub
+        </a>
     </div>
 </div>
 
-<!-- Stat cards -->
-<div class="stats-row">
-    <div class="stat-card">
-        <div class="stat-icon stat-icon--nodes">
+<div class="features">
+    <div class="feature-card">
+        <div class="feature-icon feature-icon--lora">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true">
+                <path d="M1 9l2 2c4.97-4.97 13.03-4.97 18 0l2-2C16.93 2.93 7.08 2.93 1 9zm8 8l3 3 3-3a4.237 4.237 0 0 0-6 0zm-4-4 2 2a7.074 7.074 0 0 1 10 0l2-2C15.14 9.14 8.87 9.14 5 13z"/>
+            </svg>
+        </div>
+        <h3 class="feature-title">LoRa 868 MHz</h3>
+        <p class="feature-desc">SF10 · 125 kHz · +14 dBm. Portée de plusieurs kilomètres entre nœuds, en zone dégagée.</p>
+    </div>
+
+    <div class="feature-card">
+        <div class="feature-icon feature-icon--ble">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true">
+                <path d="M17.71 7.71L12 2h-1v7.59L6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 11 14.41V22h1l5.71-5.71-4.3-4.29 4.3-4.29zM13 5.83l1.88 1.88L13 9.59V5.83zm1.88 10.46L13 18.17v-3.76l1.88 1.88z"/>
+            </svg>
+        </div>
+        <h3 class="feature-title">Bluetooth LE</h3>
+        <p class="feature-desc">Nordic UART Service (NUS). L'app mobile se connecte à l'ESP32 le plus proche sans internet.</p>
+    </div>
+
+    <div class="feature-card">
+        <div class="feature-icon feature-icon--mesh">
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true">
                 <path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92 1.61 0 2.92-1.31 2.92-2.92s-1.31-2.92-2.92-2.92z"/>
             </svg>
         </div>
-        <div class="stat-body">
-            <div class="stat-value">@Mesh.Nodes.Count</div>
-            <div class="stat-label">Nœuds connectés</div>
-        </div>
+        <h3 class="feature-title">Routage mesh</h3>
+        <p class="feature-desc">Flooding TTL avec déduplication. Chaque nœud relaie les messages vers les suivants. ACK + retransmission sur unicast.</p>
     </div>
 
-    <div class="stat-card">
-        <div class="stat-icon stat-icon--messages">
+    <div class="feature-card">
+        <div class="feature-icon feature-icon--mobile">
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true">
-                <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"/>
+                <path d="M17 1.01L7 1c-1.1 0-2 .9-2 2v18c0 1.1.9 2 2 2h10c1.1 0 2-.9 2-2V3c0-1.1-.9-1.99-2-1.99zM17 19H7V5h10v14z"/>
             </svg>
         </div>
-        <div class="stat-body">
-            <div class="stat-value">@Mesh.Messages.Count</div>
-            <div class="stat-label">Messages reçus</div>
-        </div>
+        <h3 class="feature-title">App mobile</h3>
+        <p class="feature-desc">.NET 10 MAUI · iOS &amp; Android. Scan BLE, connexion au nœud, envoi et réception de messages en temps réel.</p>
     </div>
+</div>
 
-    <div class="stat-card">
-        <div class="stat-icon stat-icon--lora">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true">
-                <path d="M1 9l2 2c4.97-4.97 13.03-4.97 18 0l2-2C16.93 2.93 7.08 2.93 1 9zm8 8l3 3 3-3a4.237 4.237 0 0 0-6 0zm-4-4 2 2a7.074 7.074 0 0 1 10 0l2-2C15.14 9.14 8.87 9.14 5 13z"/>
+<div class="arch">
+    <h2 class="arch-title">Architecture</h2>
+    <div class="arch-diagram">
+        <div class="arch-node arch-node--esp">
+            <div class="arch-node-label">ESP32 A</div>
+            <div class="arch-node-sub">Heltec LoRa 32 V3</div>
+        </div>
+        <div class="arch-arrow">
+            <span class="arch-arrow-label">LoRa 868 MHz</span>
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 40 12" fill="none">
+                <line x1="2" y1="6" x2="38" y2="6" stroke="currentColor" stroke-width="1.5" stroke-dasharray="4 3"/>
+                <polyline points="32,2 38,6 32,10" fill="none" stroke="currentColor" stroke-width="1.5"/>
+                <polyline points="8,2 2,6 8,10" fill="none" stroke="currentColor" stroke-width="1.5"/>
             </svg>
         </div>
-        <div class="stat-body">
-            <div class="stat-value">868</div>
-            <div class="stat-label">MHz · SF10 · 125 kHz</div>
+        <div class="arch-node arch-node--esp">
+            <div class="arch-node-label">ESP32 B</div>
+            <div class="arch-node-sub">Heltec LoRa 32 V3</div>
         </div>
-    </div>
-
-    <div class="stat-card">
-        <div class="stat-icon stat-icon--links">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="22" height="22" fill="currentColor" aria-hidden="true">
-                <path d="M17 12h-5v5h5v-5zM16 1v2H8V1H6v2H5c-1.11 0-1.99.9-1.99 2L3 19c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2h-1V1h-2zm3 18H5V8h14v11z"/>
-            </svg>
+        <div class="arch-connector">
+            <div class="arch-connector-line"></div>
+            <span class="arch-connector-label">BLE NUS</span>
         </div>
-        <div class="stat-body">
-            <div class="stat-value">@Mesh.Topology.Count</div>
-            <div class="stat-label">Liens observés</div>
+        <div class="arch-node arch-node--mobile">
+            <div class="arch-node-label">App mobile</div>
+            <div class="arch-node-sub">iOS · Android</div>
         </div>
     </div>
 </div>
 
-<!-- Node list -->
-@if (Mesh.Nodes.Any())
-{
-    <div class="section-header">
-        <h2 class="section-title">Nœuds actifs</h2>
-        <a href="nodes" class="section-link">Voir tout →</a>
+<div class="stack">
+    <h2 class="stack-title">Stack technique</h2>
+    <div class="stack-pills">
+        <span class="pill">C · ESP-IDF</span>
+        <span class="pill">PlatformIO</span>
+        <span class="pill">NimBLE</span>
+        <span class="pill">SX1262 LoRa</span>
+        <span class="pill">SSD1306 OLED</span>
+        <span class="pill">.NET 10 MAUI</span>
+        <span class="pill">Blazor</span>
+        <span class="pill">xUnit · Shouldly</span>
+        <span class="pill">GitHub Actions</span>
+        <span class="pill">Azure</span>
     </div>
-
-    <div class="node-grid">
-        @foreach (var node in Mesh.Nodes)
-        {
-            var lastMsg = Mesh.GetMessages(node.Id).LastOrDefault();
-            <div class="node-card">
-                <div class="node-avatar">@node.Id.ToString("X2")</div>
-                <div class="node-info">
-                    <div class="node-name">@node.Name</div>
-                    <div class="node-meta">Connecté @node.ConnectedAt.LocalDateTime.ToString("HH:mm")</div>
-                    @if (lastMsg != default)
-                    {
-                        <div class="node-last-msg">"@(lastMsg.Text.Length > 40 ? lastMsg.Text[..40] + "…" : lastMsg.Text)"</div>
-                    }
-                </div>
-                <span class="node-status">En ligne</span>
-            </div>
-        }
-    </div>
-}
-else
-{
-    <div class="empty-state">
-        <div class="empty-icon">
-            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="48" height="48" fill="currentColor" aria-hidden="true">
-                <path d="M1 9l2 2c4.97-4.97 13.03-4.97 18 0l2-2C16.93 2.93 7.08 2.93 1 9zm8 8l3 3 3-3a4.237 4.237 0 0 0-6 0zm-4-4 2 2a7.074 7.074 0 0 1 10 0l2-2C15.14 9.14 8.87 9.14 5 13z"/>
-            </svg>
-        </div>
-        <h3>Aucun nœud détecté</h3>
-        <p>Assurez-vous que votre ESP32 est alimenté et que la liaison WebSocket est active sur <code>/ws/node</code>.</p>
-    </div>
-}
-
-<!-- Recent messages -->
-@if (Mesh.Messages.Any())
-{
-    <div class="section-header" style="margin-top: 2rem;">
-        <h2 class="section-title">Messages récents</h2>
-        <a href="messages" class="section-link">Voir tout →</a>
-    </div>
-
-    <div class="recent-messages">
-        @foreach (var msg in Mesh.Messages.TakeLast(5).Reverse())
-        {
-            <div class="recent-msg">
-                <span class="recent-msg-src">0x@msg.Src.ToString("X2")</span>
-                <span class="recent-msg-text">@msg.Text</span>
-                <span class="recent-msg-time">@msg.At.LocalDateTime.ToString("HH:mm:ss")</span>
-            </div>
-        }
-    </div>
-}
-
-@code {
-    protected override void OnInitialized() => Mesh.Changed += OnChanged;
-    private void OnChanged(object? _, EventArgs __) => InvokeAsync(StateHasChanged);
-    public void Dispose() => Mesh.Changed -= OnChanged;
-}
+</div>

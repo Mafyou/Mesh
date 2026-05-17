@@ -36,6 +36,9 @@ jobs:
         with:
           dotnet-version: '10.x'
 
+      - name: Restore
+        run: dotnet restore src/Mesh.Web/Mesh.Web/Mesh.Web.csproj
+
       - name: Download firmware artifact
         uses: actions/download-artifact@v4
         with:
@@ -48,7 +51,7 @@ jobs:
           cp firmware-bin/firmware.bin src/Mesh.Web/Mesh.Web/wwwroot/firmware/Mesh.Core.bin
 
       - name: Publish
-        run: dotnet publish src/Mesh.Web/Mesh.Web/Mesh.Web.csproj -c Release -o publish/web
+        run: dotnet publish src/Mesh.Web/Mesh.Web/Mesh.Web.csproj -c Release -o publish/web --no-restore
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
