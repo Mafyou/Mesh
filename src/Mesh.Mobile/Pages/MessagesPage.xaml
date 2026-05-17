@@ -8,7 +8,7 @@
              x:DataType="vm:MainPageViewModel"
              Title="Mesh United">
 
-    <Grid RowDefinitions="Auto,Auto,Auto,*,Auto"
+    <Grid RowDefinitions="Auto,Auto,Auto,Auto,*,Auto"
           RowSpacing="0">
 
         <!-- Barre de connexion compacte -->
@@ -136,8 +136,63 @@
                  Margin="0"
                  VerticalOptions="End" />
 
+        <!-- Chips de canal (visibles seulement si connecté) -->
+        <ScrollView Grid.Row="3"
+                    IsVisible="{Binding IsConnected}"
+                    Orientation="Horizontal"
+                    HorizontalScrollBarVisibility="Never"
+                    BackgroundColor="{AppThemeBinding Light={StaticResource LightCardBg}, Dark={StaticResource DarkCardBg}}"
+                    Padding="10,6">
+            <StackLayout Orientation="Horizontal"
+                         Spacing="6"
+                         BindableLayout.ItemsSource="{Binding ChannelChips}">
+                <BindableLayout.ItemTemplate>
+                    <DataTemplate x:DataType="models:ChannelChip">
+                        <Border StrokeShape="RoundRectangle 14"
+                                Stroke="{AppThemeBinding Light={StaticResource LightSeparator}, Dark={StaticResource DarkSeparator}}"
+                                StrokeThickness="1.5"
+                                BackgroundColor="Transparent"
+                                Padding="14,5">
+                            <Border.Triggers>
+                                <DataTrigger TargetType="Border"
+                                             Binding="{Binding IsSelected}"
+                                             Value="True">
+                                    <Setter Property="BackgroundColor"
+                                            Value="{AppThemeBinding Light=#16A34A, Dark=#4ADE80}" />
+                                    <Setter Property="StrokeThickness" Value="0" />
+                                </DataTrigger>
+                            </Border.Triggers>
+                            <Border.GestureRecognizers>
+                                <TapGestureRecognizer
+                                    Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.SelectChannelCommand}"
+                                    CommandParameter="{Binding .}" />
+                            </Border.GestureRecognizers>
+                            <Label Text="{Binding Name}"
+                                   FontSize="13"
+                                   FontAttributes="Bold"
+                                   TextColor="{AppThemeBinding Light={StaticResource LightTextSecondary}, Dark={StaticResource DarkTextSecondary}}">
+                                <Label.Triggers>
+                                    <DataTrigger TargetType="Label"
+                                                 Binding="{Binding IsSelected}"
+                                                 Value="True">
+                                        <Setter Property="TextColor" Value="White" />
+                                    </DataTrigger>
+                                </Label.Triggers>
+                            </Label>
+                        </Border>
+                    </DataTemplate>
+                </BindableLayout.ItemTemplate>
+            </StackLayout>
+        </ScrollView>
+
+        <BoxView Grid.Row="3"
+                 IsVisible="{Binding IsConnected}"
+                 Style="{StaticResource Separator}"
+                 Margin="0"
+                 VerticalOptions="End" />
+
         <!-- Chat feed -->
-        <CollectionView Grid.Row="3"
+        <CollectionView Grid.Row="4"
                         x:Name="ChatCollectionView"
                         ItemsSource="{Binding Messages}"
                         SelectionMode="None"
@@ -227,12 +282,12 @@
         </CollectionView>
 
         <!-- Input bar -->
-        <BoxView Grid.Row="4"
+        <BoxView Grid.Row="5"
                  Style="{StaticResource Separator}"
                  Margin="0"
                  VerticalOptions="Start" />
 
-        <Grid Grid.Row="4"
+        <Grid Grid.Row="5"
               ColumnDefinitions="*,Auto"
               ColumnSpacing="8"
               Padding="12,10"

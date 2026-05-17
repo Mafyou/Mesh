@@ -25,5 +25,6 @@
 
 esp_err_t lora_init(void);
 esp_err_t lora_send(const uint8_t *data, uint8_t len);
-esp_err_t lora_recv(uint8_t *data, uint8_t *len, int16_t *rssi_out);
+/* rssi_out and snr_out may be NULL if not needed */
+esp_err_t lora_recv(uint8_t *data, uint8_t *len, int16_t *rssi_out, int8_t *snr_out);
 bool      lora_busy(void);

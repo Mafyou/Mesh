@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <string.h>
 #include "esp_log.h"
+#include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "nvs_flash.h"
@@ -9,6 +10,7 @@
 #include "hal/lora.h"
 #include "hal/oled.h"
 #include "mesh/mesh.h"
+#include "power/power.h"
 
 #ifdef MESH_WEB_ENABLED
 #include "wifi/wifi.h"
@@ -23,41 +25,44 @@ static const char *TAG = "main";
 /* ---- BLE / WebSocket ↔ mesh bridge ---- */
 
 /* mesh → BLE + WebSocket : forward received packet to connected clients */
-static void on_mesh_rx(uint8_t src, uint8_t dst, mesh_type_t type,
+/* Wire format ESP→mobile/web: [src 1B] [channel 1B] [type 1B] [payload] */
+static void on_mesh_rx(uint8_t src, uint8_t dst, mesh_type_t type, uint8_t channel,
                        const uint8_t *payload, uint8_t len)
 {
     (void)dst;
-    (void)type;
+    power_activity();
 
-    /* Wire format ESP→mobile/web: [src 1B] [text] */
-    uint8_t buf[1 + MESH_PAYLOAD_MAX];
+    uint8_t buf[3 + MESH_PAYLOAD_MAX];
     buf[0] = src;
+    buf[1] = channel;
+    buf[2] = (uint8_t)type;
     if (len > 0) {
-        memcpy(&buf[1], payload, len);
+        memcpy(&buf[3], payload, len);
     }
 
-    ble_notify(buf, (uint16_t)(1 + len));
+    ble_notify(buf, (uint16_t)(3 + len));
 
 #ifdef MESH_WEB_ENABLED
-    ws_client_send(buf, 1 + len);
+    ws_client_send(buf, 3 + len);
 #endif
 }
 
 /* BLE → mesh */
+/* Wire format mobile→ESP: [dst 1B] [channel 1B] [payload] */
 static void on_ble_write(const uint8_t *data, uint16_t len)
 {
-    /* Wire format mobile→ESP: [dst 1B] [text] */
-    if (len < 2) return;
-    mesh_send(data[0], MESH_TYPE_MSG, &data[1], (uint8_t)(len - 1));
+    if (len < 3) return;
+    power_activity();
+    mesh_send(data[0], MESH_TYPE_MSG, data[1], &data[2], (uint8_t)(len - 2));
 }
 
 #ifdef MESH_WEB_ENABLED
 /* WebSocket → mesh */
+/* Wire format web→ESP: [dst 1B] [channel 1B] [payload] */
 static void on_ws_rx(const uint8_t *data, int len)
 {
-    /* Wire format web→ESP: [dst 1B] [text] */
-    if (len < 2) return;
-    mesh_send(data[0], MESH_TYPE_MSG, &data[1], (uint8_t)(len - 1));
+    if (len < 3) return;
+    mesh_send(data[0], MESH_TYPE_MSG, data[1], &data[2], (uint8_t)(len - 2));
 }
 #endif
 
@@ -135,6 +140,11 @@ void app_main(void)
     oled_draw_text(3, 0, "BLE ready   ");
 #endif
 
+    /* Power management (light sleep on idle) */
+    if (power_init() != ESP_OK) {
+        ESP_LOGW(TAG, "power_init failed — sleep disabled");
+    }
+
     ESP_LOGI(TAG, "ready  node=0x%02X", mesh_node_id());
 
     uint32_t ticks     = 0;
@@ -143,13 +153,50 @@ void app_main(void)
     for (;;) {
         mesh_process();
 
-        /* Periodic broadcast ping */
+        /* Periodic broadcast ping with telemetry payload */
         if (++ticks % ping_tick == 0) {
-            const char *msg = "ping";
-            mesh_send(MESH_BROADCAST, MESH_TYPE_PING,
-                      (const uint8_t *)msg, (uint8_t)strlen(msg));
+            uint8_t ping[MESH_PING_PAYLOAD_SIZE];
+            uint32_t uptime_s = (uint32_t)(esp_timer_get_time() / 1000000ULL);
+            /* vbat not available without ADC driver; use 0 as placeholder */
+            uint16_t vbat_mv  = 0;
+            uint16_t tx_pkts  = mesh_tx_count();
+            uint16_t rx_pkts  = mesh_rx_count();
+            ping[0] = (uint8_t)(uptime_s);
+            ping[1] = (uint8_t)(uptime_s >> 8);
+            ping[2] = (uint8_t)(uptime_s >> 16);
+            ping[3] = (uint8_t)(uptime_s >> 24);
+            ping[4] = (uint8_t)(vbat_mv);
+            ping[5] = (uint8_t)(vbat_mv >> 8);
+            ping[6] = (uint8_t)(tx_pkts);
+            ping[7] = (uint8_t)(tx_pkts >> 8);
+            ping[8] = (uint8_t)(rx_pkts);
+            ping[9] = (uint8_t)(rx_pkts >> 8);
+            mesh_send(MESH_BROADCAST, MESH_TYPE_PING, MESH_CHANNEL_DEFAULT,
+                      ping, MESH_PING_PAYLOAD_SIZE);
+
+            /* Push neighbor table to connected BLE/WS clients */
+            mesh_neighbor_t nbrs[MESH_NEIGHBOR_MAX];
+            uint8_t cnt = mesh_get_neighbors(nbrs, MESH_NEIGHBOR_MAX);
+            if (cnt > 0) {
+                /* Frame: [src=node_id][channel=0][type=NEIGHBORS][count][{id,rssi,snr}...] */
+                uint8_t nbuf[3 + 1 + MESH_NEIGHBOR_MAX * 3];
+                nbuf[0] = mesh_node_id();
+                nbuf[1] = MESH_CHANNEL_DEFAULT;
+                nbuf[2] = (uint8_t)MESH_TYPE_NEIGHBORS;
+                nbuf[3] = cnt;
+                for (uint8_t i = 0; i < cnt; i++) {
+                    nbuf[4 + i * 3 + 0] = nbrs[i].node_id;
+                    nbuf[4 + i * 3 + 1] = (uint8_t)nbrs[i].rssi;
+                    nbuf[4 + i * 3 + 2] = (uint8_t)nbrs[i].snr;
+                }
+                ble_notify(nbuf, (uint16_t)(4 + cnt * 3));
+#ifdef MESH_WEB_ENABLED
+                ws_client_send(nbuf, 4 + cnt * 3);
+#endif
+            }
         }
 
+        power_maybe_sleep();
         vTaskDelay(pdMS_TO_TICKS(LOOP_TICK_MS));
     }
 }

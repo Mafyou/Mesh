@@ -334,7 +334,7 @@ esp_err_t lora_send(const uint8_t *data, uint8_t len)
     return sx_enter_rx();
 }
 
-esp_err_t lora_recv(uint8_t *data, uint8_t *len_out, int16_t *rssi_out)
+esp_err_t lora_recv(uint8_t *data, uint8_t *len_out, int16_t *rssi_out, int8_t *snr_out)
 {
     if (!data || !len_out) {
         return ESP_ERR_INVALID_ARG;
@@ -370,11 +370,12 @@ esp_err_t lora_recv(uint8_t *data, uint8_t *len_out, int16_t *rssi_out)
     ESP_RETURN_ON_ERROR(sx_read_buffer(rx_ptr, data, payload_len), TAG, "read buf");
     *len_out = payload_len;
 
-    if (rssi_out) {
+    if (rssi_out || snr_out) {
         uint8_t pkt_status[3] = {0};
         sx_read(OP_GET_PKT_STATUS, pkt_status, 3);
-        /* LoRa: rssiPkt = -pkt_status[0] / 2 */
-        *rssi_out = -(int16_t)pkt_status[0] / 2;
+        /* LoRa: rssiPkt = -pkt_status[0] / 2 ; snrPkt = pkt_status[1] / 4 (signed) */
+        if (rssi_out) *rssi_out = -(int16_t)pkt_status[0] / 2;
+        if (snr_out)  *snr_out  = (int8_t)pkt_status[1] / 4;
     }
 
     return ESP_OK;

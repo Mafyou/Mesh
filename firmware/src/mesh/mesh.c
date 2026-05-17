@@ -6,6 +6,7 @@
 #include "esp_log.h"
 #include "esp_mac.h"
 #include "esp_timer.h"
+#include "aes/esp_aes.h"
 
 static const char *TAG = "mesh";
 
@@ -82,6 +83,98 @@ static void pending_ack(uint16_t seq)
     }
 }
 
+/* ---- telemetry counters ---- */
+
+static uint16_t s_tx_count;
+static uint16_t s_rx_count;
+
+uint16_t mesh_tx_count(void) { return s_tx_count; }
+uint16_t mesh_rx_count(void) { return s_rx_count; }
+
+/* ---- neighbor table ---- */
+
+static mesh_neighbor_t s_neighbors[MESH_NEIGHBOR_MAX];
+static uint8_t         s_neighbor_count;
+
+static void neighbor_update(uint8_t node_id, int8_t rssi, int8_t snr)
+{
+    uint32_t now_s = (uint32_t)(esp_timer_get_time() / 1000000ULL);
+
+    for (int i = 0; i < s_neighbor_count; i++) {
+        if (s_neighbors[i].node_id == node_id) {
+            s_neighbors[i].rssi        = rssi;
+            s_neighbors[i].snr         = snr;
+            s_neighbors[i].last_seen_s = now_s;
+            return;
+        }
+    }
+    if (s_neighbor_count < MESH_NEIGHBOR_MAX) {
+        s_neighbors[s_neighbor_count++] = (mesh_neighbor_t){
+            .node_id      = node_id,
+            .rssi         = rssi,
+            .snr          = snr,
+            .last_seen_s  = now_s,
+        };
+    }
+}
+
+uint8_t mesh_neighbor_count(void) { return s_neighbor_count; }
+
+uint8_t mesh_get_neighbors(mesh_neighbor_t *out, uint8_t max)
+{
+    uint8_t n = s_neighbor_count < max ? s_neighbor_count : max;
+    for (uint8_t i = 0; i < n; i++) out[i] = s_neighbors[i];
+    return n;
+}
+
+static bool is_direct_neighbor(uint8_t node_id)
+{
+    for (int i = 0; i < s_neighbor_count; i++) {
+        if (s_neighbors[i].node_id == node_id) return true;
+    }
+    return false;
+}
+
+/* ---- crypto (AES-256-CTR per channel) ---- */
+
+/*
+ * Pre-computed SHA256 keys — one per channel.
+ * Key[n] = SHA256(channel_name[n]), computed at build time.
+ * Channel names (canonical, ASCII): "Public", "Equipe", "Urgence", "Prive"
+ * The mobile app must derive keys the same way.
+ */
+static const uint8_t CHANNEL_KEYS[4][32] = {
+    /* SHA256("Public")  */ {0x59,0x19,0x35,0xb1,0x5b,0x1c,0x88,0xe2,0xd5,0xf6,0xbe,0x0a,0x05,0x46,0x04,0xfc,0xf3,0x6f,0x05,0x85,0xa6,0xf5,0x10,0x98,0xfa,0x38,0x03,0x82,0x6f,0xff,0x27,0x8c},
+    /* SHA256("Equipe")  */ {0xde,0x0f,0x23,0x9e,0xc4,0x27,0x44,0xd3,0x60,0x4a,0x16,0xb9,0x00,0x21,0x2b,0x0a,0x30,0x28,0x13,0xee,0x03,0x1c,0xbc,0xad,0xb6,0xbd,0x05,0x65,0x82,0x78,0x52,0xc3},
+    /* SHA256("Urgence") */ {0xed,0xd8,0x9b,0x65,0x07,0xdd,0x1e,0x74,0x98,0xca,0x07,0xcf,0x02,0x1f,0x2d,0x86,0xb0,0x42,0xba,0xa0,0x59,0xeb,0xcb,0x44,0xd6,0x2c,0x5d,0x0c,0x20,0x79,0x34,0x9e},
+    /* SHA256("Prive")   */ {0x72,0x5f,0x71,0xe1,0x7f,0xe9,0xe5,0x77,0xbc,0xa5,0x4f,0x25,0x57,0xce,0xde,0x1b,0x04,0xce,0x44,0xbe,0x70,0xe0,0xb3,0xdf,0x48,0xf7,0xfd,0x98,0x90,0x70,0x12,0x30},
+};
+
+/*
+ * AES-256-CTR in-place encrypt/decrypt.
+ * Nonce: [src:1B][seq_lo:1B][seq_hi:1B][0×13]
+ * Encrypt == decrypt for CTR mode.
+ */
+static void mesh_crypt_payload(uint8_t channel, uint8_t src, uint16_t seq,
+                               uint8_t *payload, uint8_t len)
+{
+    if (!len || channel > 3) return;
+
+    uint8_t nonce[16] = {0};
+    nonce[0] = src;
+    nonce[1] = (uint8_t)(seq & 0xFF);
+    nonce[2] = (uint8_t)(seq >> 8);
+
+    uint8_t stream_block[16] = {0};
+    size_t  nc_off = 0;
+
+    esp_aes_context ctx;
+    esp_aes_init(&ctx);
+    esp_aes_setkey(&ctx, CHANNEL_KEYS[channel], 256);
+    esp_aes_crypt_ctr(&ctx, len, &nc_off, nonce, stream_block, payload, payload);
+    esp_aes_free(&ctx);
+}
+
 /* ---- node state ---- */
 
 static uint8_t      s_node_id;
@@ -149,7 +242,8 @@ uint8_t mesh_pending_count(void)
     return count;
 }
 
-esp_err_t mesh_send(uint8_t dst, mesh_type_t type, const uint8_t *payload, uint8_t len)
+esp_err_t mesh_send(uint8_t dst, mesh_type_t type, uint8_t channel,
+                    const uint8_t *payload, uint8_t len)
 {
     if (len > MESH_PAYLOAD_MAX) {
         return ESP_ERR_INVALID_ARG;
@@ -157,10 +251,11 @@ esp_err_t mesh_send(uint8_t dst, mesh_type_t type, const uint8_t *payload, uint8
 
     mesh_packet_t pkt;
     memset(&pkt, 0, sizeof(pkt));
-    pkt.flags = (uint8_t)((uint8_t)type << 2);
+    pkt.flags = (uint8_t)(((uint8_t)type << 2) | (channel & MESH_CHANNEL_MAX));
     pkt.src   = s_node_id;
     pkt.dst   = dst;
-    pkt.ttl   = MESH_TTL_DEFAULT;
+    /* Use TTL=1 for known direct neighbors to avoid unnecessary flooding */
+    pkt.ttl   = (dst != MESH_BROADCAST && is_direct_neighbor(dst)) ? 1 : MESH_TTL_DEFAULT;
     pkt.seq   = s_seq++;
     pkt.len   = len;
     if (payload && len) {
@@ -169,11 +264,16 @@ esp_err_t mesh_send(uint8_t dst, mesh_type_t type, const uint8_t *payload, uint8
 
     history_add(pkt.src, pkt.seq);
 
+    if ((type == MESH_TYPE_MSG || type == MESH_TYPE_PING) && len > 0) {
+        mesh_crypt_payload(channel, pkt.src, pkt.seq, pkt.payload, pkt.len);
+    }
+
     esp_err_t err = lora_send((uint8_t *)&pkt, (uint8_t)(MESH_HEADER_SIZE + len));
     if (err != ESP_OK) {
         return err;
     }
 
+    s_tx_count++;
     ESP_LOGD(TAG, "TX → 0x%02X  seq=%u  %u bytes", dst, pkt.seq, len);
 
     /* Track unicast MSG for retransmission */
@@ -191,14 +291,16 @@ void mesh_process(void)
     uint8_t  buf[LORA_MTU];
     uint8_t  wire_len = 0;
     int16_t  rssi     = 0;
+    int8_t   snr      = 0;
 
-    esp_err_t err = lora_recv(buf, &wire_len, &rssi);
+    esp_err_t err = lora_recv(buf, &wire_len, &rssi, &snr);
 
     if (err != ESP_ERR_NOT_FOUND && err == ESP_OK
         && wire_len >= (uint8_t)MESH_HEADER_SIZE) {
 
-        mesh_packet_t *pkt  = (mesh_packet_t *)buf;
-        mesh_type_t    type = (mesh_type_t)((pkt->flags >> 2) & 0x0F);
+        mesh_packet_t *pkt    = (mesh_packet_t *)buf;
+        mesh_type_t    type   = (mesh_type_t)((pkt->flags >> 2) & 0x0F);
+        uint8_t        ch     = pkt->flags & MESH_CHANNEL_MAX;
 
         if (pkt->src == s_node_id) {
             goto retransmit_check; /* echo of our own rebroadcast */
@@ -219,15 +321,27 @@ void mesh_process(void)
         }
 
         history_add(pkt->src, pkt->seq);
+        s_rx_count++;
 
-        ESP_LOGD(TAG, "RX from 0x%02X → 0x%02X  seq=%u  RSSI %d dBm",
-                 pkt->src, pkt->dst, pkt->seq, rssi);
+        /* Track direct neighbors — only packets that haven't been relayed yet */
+        if (pkt->ttl == MESH_TTL_DEFAULT) {
+            neighbor_update(pkt->src, (int8_t)(rssi < -128 ? -128 : rssi), snr);
+        }
+
+        ESP_LOGD(TAG, "RX from 0x%02X → 0x%02X  seq=%u  RSSI %d dBm  SNR %d dB",
+                 pkt->src, pkt->dst, pkt->seq, rssi, snr);
+
+        /* ---- Flood-forward (payload still encrypted) ---- */
+        if (pkt->ttl > 0) {
+            pkt->ttl--;
+            lora_send(buf, wire_len);
+        }
 
         /* ---- Deliver to local handler ---- */
         if (pkt->dst == s_node_id || pkt->dst == MESH_BROADCAST) {
 
             if (type == MESH_TYPE_ACK) {
-                /* ACK: decode acked seq and clear from pending */
+                /* ACK payload is not encrypted */
                 if (pkt->len >= 2) {
                     uint16_t acked = (uint16_t)(pkt->payload[0]
                                     | ((uint16_t)pkt->payload[1] << 8));
@@ -235,12 +349,16 @@ void mesh_process(void)
                 }
 
             } else {
-                /* MSG or PING: deliver to application */
+                /* Decrypt MSG and PING payloads before delivery */
+                if ((type == MESH_TYPE_MSG || type == MESH_TYPE_PING) && pkt->len > 0) {
+                    mesh_crypt_payload(ch, pkt->src, pkt->seq, pkt->payload, pkt->len);
+                }
+
                 ESP_LOGI(TAG, "[0x%02X→0x%02X] %.*s  (RSSI %d dBm)",
                          pkt->src, pkt->dst, pkt->len, (char *)pkt->payload, rssi);
 
                 if (s_rx_cb) {
-                    s_rx_cb(pkt->src, pkt->dst, type, pkt->payload, pkt->len);
+                    s_rx_cb(pkt->src, pkt->dst, type, ch, pkt->payload, pkt->len);
                 }
 
                 /* ACK unicast MSG so the sender stops retrying */
@@ -248,12 +366,6 @@ void mesh_process(void)
                     send_ack(pkt->src, pkt->seq);
                 }
             }
-        }
-
-        /* ---- Flood-forward ---- */
-        if (pkt->ttl > 0) {
-            pkt->ttl--;
-            lora_send(buf, wire_len);
         }
     }
 
@@ -281,7 +393,7 @@ retransmit_check:
         pkt.flags = (uint8_t)((uint8_t)s_pending[i].type << 2);
         pkt.src   = s_node_id;
         pkt.dst   = s_pending[i].dst;
-        pkt.ttl   = MESH_TTL_DEFAULT;
+        pkt.ttl   = is_direct_neighbor(s_pending[i].dst) ? 1 : MESH_TTL_DEFAULT;
         pkt.seq   = s_pending[i].seq;
         pkt.len   = s_pending[i].len;
         if (s_pending[i].len) {

@@ -1,3 +1,5 @@
+using QRCoder;
+
 namespace Mesh.Mobile.ViewModels;
 
 public partial class NodesPageViewModel(BleService bleService) : ObservableObject
@@ -5,6 +7,12 @@ public partial class NodesPageViewModel(BleService bleService) : ObservableObjec
     private readonly BleService bleService = bleService;
 
     public ObservableCollection<IDevice> DiscoveredDevices => bleService.DiscoveredDevices;
+
+    /* Mesh nodes seen over LoRa (with telemetry), excluding the broadcast placeholder */
+    public IEnumerable<NodeContact> MeshNodes =>
+        bleService.KnownNodes.Where(n => n.Id != 0xFF);
+
+    public int MeshNodesCount => bleService.KnownNodes.Count(n => n.Id != 0xFF);
 
     [ObservableProperty]
     private string _statusText = "Prêt à scanner";
@@ -15,6 +23,15 @@ public partial class NodesPageViewModel(BleService bleService) : ObservableObjec
     [ObservableProperty]
     private bool _scanButtonEnabled = true;
 
+    [ObservableProperty]
+    private ImageSource? _qrCodeImageSource;
+
+    [ObservableProperty]
+    private bool _isQrVisible;
+
+    [ObservableProperty]
+    private string _connectedNodeInfo = string.Empty;
+
     public bool IsScanning => bleService.IsScanning;
     public bool IsConnected => bleService.IsConnected;
 
@@ -22,12 +39,14 @@ public partial class NodesPageViewModel(BleService bleService) : ObservableObjec
     {
         bleService.DevicesUpdated += OnDevicesUpdated;
         bleService.ConnectionChanged += OnConnectionChanged;
+        bleService.KnownNodes.CollectionChanged += OnKnownNodesChanged;
     }
 
     public void Unsubscribe()
     {
         bleService.DevicesUpdated -= OnDevicesUpdated;
         bleService.ConnectionChanged -= OnConnectionChanged;
+        bleService.KnownNodes.CollectionChanged -= OnKnownNodesChanged;
     }
 
     [RelayCommand]
@@ -92,11 +111,38 @@ public partial class NodesPageViewModel(BleService bleService) : ObservableObjec
         StatusText = $"{bleService.DiscoveredDevices.Count} appareil(s) détecté(s)";
     }
 
+    private void OnKnownNodesChanged(object? sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
+    {
+        OnPropertyChanged(nameof(MeshNodes));
+        OnPropertyChanged(nameof(MeshNodesCount));
+    }
+
+    [RelayCommand]
+    private void ShowQrCode()
+    {
+        var name = bleService.ConnectedNodeName ?? "Mesh";
+        var id   = bleService.ConnectedNodeId ?? "00";
+
+        var uri = $"meshunited://node/add?id={Uri.EscapeDataString(id)}&alias={Uri.EscapeDataString(name)}";
+        ConnectedNodeInfo = $"{name}  ({id})";
+
+        var qrGen  = new QRCodeGenerator();
+        var qrData = qrGen.CreateQrCode(uri, QRCodeGenerator.ECCLevel.Q);
+        var png    = new PngByteQRCode(qrData);
+        var bytes  = png.GetGraphic(10);
+        QrCodeImageSource = ImageSource.FromStream(() => new MemoryStream(bytes));
+        IsQrVisible = true;
+    }
+
+    [RelayCommand]
+    private void HideQrCode() => IsQrVisible = false;
+
     private void OnConnectionChanged(object? sender, bool connected)
     {
         MainThread.BeginInvokeOnMainThread(async () =>
         {
             ScanButtonEnabled = true;
+            IsQrVisible = false;
             if (connected)
             {
                 var name = bleService.ConnectedNodeName ?? "Nœud Mesh";

@@ -1,3 +1,6 @@
+using Mesh.Mobile.Core;
+using Mesh.Mobile.Core.Models;
+
 namespace Mesh.Mobile.ViewModels;
 
 public partial class MainPageViewModel(BleService bleService, SettingsService settingsService, IMeshNotificationService notificationService) : ObservableObject
@@ -36,10 +39,48 @@ public partial class MainPageViewModel(BleService bleService, SettingsService se
 
     public ObservableCollection<IDevice> DiscoveredDevices => bleService.DiscoveredDevices;
     public ObservableCollection<NodeContact> KnownNodes => bleService.KnownNodes;
+
+    public ObservableCollection<ChannelChip> ChannelChips { get; } =
+    [
+        new(0, "Public")  { IsSelected = true },
+        new(1, "Équipe"),
+        new(2, "Urgence"),
+        new(3, "Privé"),
+    ];
+
+    private byte _selectedChannel = 0;
+    public byte SelectedChannel
+    {
+        get => _selectedChannel;
+        private set
+        {
+            if (_selectedChannel == value) return;
+            _selectedChannel = value;
+            RefreshMessages();
+        }
+    }
+
+    private readonly ObservableCollection<MessageItem> _allMessages = [];
     public ObservableCollection<MessageItem> Messages { get; } = [];
 
     [ObservableProperty]
     private NodeContact _selectedNode = null!;
+
+    [RelayCommand]
+    private void SelectChannel(ChannelChip chip)
+    {
+        if (SelectedChannel == chip.Id) return;
+        foreach (var c in ChannelChips) c.IsSelected = false;
+        chip.IsSelected = true;
+        SelectedChannel = chip.Id;
+    }
+
+    private void RefreshMessages()
+    {
+        Messages.Clear();
+        foreach (var msg in _allMessages.Where(m => m.Channel == _selectedChannel))
+            Messages.Add(msg);
+    }
 
     [RelayCommand]
     private void SelectNode(NodeContact node)
@@ -142,8 +183,10 @@ public partial class MainPageViewModel(BleService bleService, SettingsService se
         try
         {
             var formatted = settingsService.FormatOutgoing(text);
-            await bleService.SendAsync(SelectedNode?.Id ?? 0xFF, formatted);
-            Messages.Add(new MessageItem(0x00, formatted));
+            await bleService.SendAsync(SelectedNode?.Id ?? 0xFF, SelectedChannel, formatted);
+            var sent = new MessageItem(0x00, formatted, DateTimeOffset.Now, SelectedChannel);
+            _allMessages.Add(sent);
+            Messages.Add(sent);
             MessageText = string.Empty;
         }
         catch (Exception ex)
@@ -218,11 +261,14 @@ public partial class MainPageViewModel(BleService bleService, SettingsService se
 
     private async void OnMessageReceived(object? sender, MeshMessageEventArgs e)
     {
-        Messages.Add(new MessageItem(e.Src, e.Text));
+        if (e.Type != MeshPacketType.Msg) return;   // PINGs/NEIGHBORS handled in BleService
+
+        var item = new MessageItem(e.Src, e.Text, e.SentAt ?? DateTimeOffset.Now, e.Channel);
+        _allMessages.Add(item);
+        if (item.Channel == SelectedChannel)
+            Messages.Add(item);
         if (NotificationsEnabled)
-        {
             await notificationService.ShowIncomingMessageAsync(e.Src, e.Text);
-        }
     }
 
     private void UpdatePreferredNodesLabel()

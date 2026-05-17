@@ -13,6 +13,7 @@ public class BleService
     private ICharacteristic? _rxCharacteristic;
     private ICharacteristic? _txCharacteristic;
     private CancellationTokenSource? _scanCts;
+    private bool _isMeshCore;
 
     public ObservableCollection<IDevice> DiscoveredDevices { get; } = new();
     public ObservableCollection<NodeContact> KnownNodes { get; } =
@@ -115,14 +116,17 @@ public class BleService
         }
     }
 
-    public async Task SendAsync(byte dst, string text)
+    public async Task SendAsync(byte dst, byte channel, string text)
     {
         if (_rxCharacteristic is null)
         {
             throw new InvalidOperationException("Not connected to a Mesh node.");
         }
 
-        var packet = MeshProtocol.EncodeWrite(dst, text);
+        var packet = _isMeshCore
+            ? MeshCoreProtocol.EncodeMessage(channel, text)
+            : MeshProtocol.EncodeWrite(dst, channel, text);
+
         await _rxCharacteristic.WriteAsync(packet);
     }
 
@@ -146,9 +150,8 @@ public class BleService
 
     private void OnDeviceDiscovered(object? sender, DeviceEventArgs e)
     {
-        // Only accept Mesh nodes: firmware always names them "Mesh-XX".
+        // Accept Mesh United nodes ("Mesh-XX") and MeshCore nodes (any other named device).
         if (string.IsNullOrWhiteSpace(e.Device.Name)) return;
-        if (!e.Device.Name.StartsWith("Mesh-", StringComparison.OrdinalIgnoreCase)) return;
 
         if (DiscoveredDevices.All(device => device.Id != e.Device.Id))
         {
@@ -163,12 +166,13 @@ public class BleService
     private async void OnDeviceConnected(object? sender, DeviceEventArgs e)
     {
         _connectedDevice = e.Device;
+        _isMeshCore = MeshCoreProtocol.IsMeshCoreDevice(e.Device.Name);
         try
         {
             var service = await e.Device.GetServiceAsync(NusServiceUuid);
             if (service is null)
             {
-                System.Diagnostics.Debug.WriteLine("[BleService] NUS service not found — not a Mesh node");
+                System.Diagnostics.Debug.WriteLine("[BleService] NUS service not found");
                 await _adapter.DisconnectDeviceAsync(e.Device);
                 return;
             }
@@ -184,6 +188,13 @@ public class BleService
 
             _txCharacteristic.ValueUpdated += OnTxValueUpdated;
             await _txCharacteristic.StartUpdatesAsync();
+
+            if (_isMeshCore && _rxCharacteristic is not null)
+            {
+                var handshake = MeshCoreProtocol.EncodeAppStart();
+                await _rxCharacteristic.WriteAsync(handshake);
+                System.Diagnostics.Debug.WriteLine("[BleService] MeshCore handshake sent");
+            }
 
             ConnectionChanged?.Invoke(this, true);
         }
@@ -216,26 +227,78 @@ public class BleService
         _connectedDevice = null;
         _rxCharacteristic = null;
         _txCharacteristic = null;
+        _isMeshCore = false;
+    }
+
+    private NodeContact GetOrAddNode(byte id)
+    {
+        var node = KnownNodes.FirstOrDefault(n => n.Id == id);
+        if (node is null)
+        {
+            node = new NodeContact { Id = id };
+            KnownNodes.Add(node);
+        }
+        return node;
     }
 
     private void OnTxValueUpdated(object? sender, CharacteristicUpdatedEventArgs e)
     {
         var data = e.Characteristic.Value;
-        if (data is null || data.Length < 1)
+        if (data is null || data.Length < 1) return;
+
+        if (_isMeshCore)
         {
+            var msg = MeshCoreProtocol.DecodeNotify(data);
+            if (msg is null) return;
+
+            MainThread.BeginInvokeOnMainThread(() =>
+                MessageReceived?.Invoke(this, new MeshMessageEventArgs(
+                    0x00, msg.Value.Text, msg.Value.Channel, msg.Value.SentAt)));
             return;
         }
 
-        var src = data[0];
-        var text = data.Length > 1 ? Encoding.UTF8.GetString(data, 1, data.Length - 1) : string.Empty;
+        if (data.Length < 3) return;
+        var packet = MeshProtocol.DecodeNotify(data);
+        if (packet is null) return;
 
         MainThread.BeginInvokeOnMainThread(() =>
         {
-            if (KnownNodes.All(n => n.Id != src))
+            var node = GetOrAddNode(packet.Value.Src);
+
+            switch (packet.Value.Type)
             {
-                KnownNodes.Add(new NodeContact { Id = src });
+                case MeshPacketType.Ping:
+                    node.ApplyPingPayload(data.AsSpan(3));
+                    break;
+
+                case MeshPacketType.Neighbors:
+                    ApplyNeighborsPayload(data.AsSpan(3));
+                    break;
+
+                default:
+                    MessageReceived?.Invoke(this, new MeshMessageEventArgs(
+                        packet.Value.Src, packet.Value.Text,
+                        packet.Value.Channel, packet.Value.SentAt, packet.Value.Type));
+                    break;
             }
-            MessageReceived?.Invoke(this, new MeshMessageEventArgs(src, text));
         });
+    }
+
+    private void ApplyNeighborsPayload(ReadOnlySpan<byte> payload)
+    {
+        if (payload.Length < 1) return;
+        var count = payload[0];
+
+        for (int i = 0; i < count && (1 + i * 3 + 2) < payload.Length; i++)
+        {
+            var id   = payload[1 + i * 3];
+            var rssi = (sbyte)payload[2 + i * 3];
+            var snr  = (sbyte)payload[3 + i * 3];
+
+            var node = GetOrAddNode(id);
+            node.Rssi             = rssi;
+            node.Snr              = snr;
+            node.IsDirectNeighbor = true;
+        }
     }
 }

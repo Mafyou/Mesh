@@ -33,14 +33,55 @@ else
 
         <section class="flasher-section">
             <h2 class="flasher-step">1 — Firmware</h2>
-            <div class="flasher-actions" style="margin-bottom:.75rem">
+
+            <div class="flasher-fw-cards">
+                <label class="flasher-fw-card @(_firmwareTarget == FirmwareTarget.MeshUnited ? "flasher-fw-card--active" : "")">
+                    <input type="radio" name="fwtarget" value="meshunited"
+                           checked="@(_firmwareTarget == FirmwareTarget.MeshUnited)"
+                           @onchange="@(() => _firmwareTarget = FirmwareTarget.MeshUnited)"
+                           disabled="@(_state != FlashState.Idle)" />
+                    <div class="flasher-fw-card-body">
+                        <strong>Mesh United</strong>
+                        <span>Notre firmware — AES-256, canaux, télémétrie PING</span>
+                    </div>
+                </label>
+                <label class="flasher-fw-card @(_firmwareTarget == FirmwareTarget.MeshCore ? "flasher-fw-card--active" : "")">
+                    <input type="radio" name="fwtarget" value="meshcore"
+                           checked="@(_firmwareTarget == FirmwareTarget.MeshCore)"
+                           @onchange="@(() => _firmwareTarget = FirmwareTarget.MeshCore)"
+                           disabled="@(_state != FlashState.Idle)" />
+                    <div class="flasher-fw-card-body">
+                        <strong>MeshCore</strong>
+                        <span>Firmware communautaire — compatible avec l'app Mesh United</span>
+                    </div>
+                </label>
+            </div>
+
+            @if (_firmwareTarget == FirmwareTarget.MeshCore)
+            {
+                <div class="flasher-url-row">
+                    <label class="flasher-label" style="flex:1;margin:0">
+                        URL du binaire MeshCore (.bin)
+                        <input class="flasher-input" type="url" @bind="_meshCoreUrl"
+                               disabled="@(_state != FlashState.Idle)"
+                               placeholder="https://github.com/…/releases/latest/download/…bin" />
+                    </label>
+                    <a class="flasher-btn" href="https://meshcore.co.uk/configurator/"
+                       target="_blank" rel="noopener" style="align-self:flex-end">
+                        Flash web ↗
+                    </a>
+                </div>
+            }
+
+            <div class="flasher-actions" style="margin-top:.75rem">
                 <button class="flasher-btn flasher-btn--primary" @onclick="LoadLatestFirmware"
-                        disabled="@(_loadingFirmware || _state != FlashState.Idle)">
-                    @if (_loadingFirmware) { <span>Chargement…</span> } else { <span>Charger le dernier firmware</span> }
+                        disabled="@(_loadingFirmware || _state != FlashState.Idle || (_firmwareTarget == FirmwareTarget.MeshCore && string.IsNullOrWhiteSpace(_meshCoreUrl)))">
+                    @if (_loadingFirmware) { <span>Chargement…</span> } else { <span>Charger</span> }
                 </button>
                 <span style="align-self:center;color:var(--color-text-secondary);font-size:13px">ou</span>
                 <input type="file" accept=".bin" class="flasher-file-input" @ref="_fileInput" />
             </div>
+
             @if (_firmwareName is not null)
             {
                 <span class="flasher-badge">@_firmwareName &nbsp;(@(_firmwareBytes!.Length / 1024) KB)</span>
@@ -109,6 +150,7 @@ else
 
 @code {
     private enum FlashState { Idle, Connected, Flashing, Done }
+    private enum FirmwareTarget { MeshUnited, MeshCore }
 
     private IJSObjectReference? _module;
     private DotNetObjectReference<Flasher>? _selfRef;
@@ -117,6 +159,8 @@ else
     private bool _serialSupported;
     private FlashState _state = FlashState.Idle;
     private bool _loadingFirmware;
+    private FirmwareTarget _firmwareTarget = FirmwareTarget.MeshUnited;
+    private string _meshCoreUrl = string.Empty;
 
     private byte[]? _firmwareBytes;
     private string? _firmwareName;
@@ -144,9 +188,23 @@ else
         _loadingFirmware = true;
         try
         {
-            var b64 = await _module.InvokeAsync<string>("loadFirmwareFromUrl", "/firmware/Mesh.Core.bin");
+            string url;
+            string label;
+
+            if (_firmwareTarget == FirmwareTarget.MeshCore)
+            {
+                url   = _meshCoreUrl.Trim();
+                label = url.Split('/').LastOrDefault() ?? "MeshCore.bin";
+            }
+            else
+            {
+                url   = "/firmware/Mesh.Core.bin";
+                label = "Mesh.Core.bin (dernier build)";
+            }
+
+            var b64 = await _module.InvokeAsync<string>("loadFirmwareFromUrl", url);
             _firmwareBytes = Convert.FromBase64String(b64);
-            _firmwareName = "Mesh.Core.bin (dernier build)";
+            _firmwareName  = label;
             AppendLog($"Firmware chargé — {_firmwareBytes.Length / 1024} KB");
         }
         catch (Exception ex)
