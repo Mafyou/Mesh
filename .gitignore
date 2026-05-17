@@ -427,3 +427,9 @@ FodyWeavers.xsd
 *.msix
 *.msm
 *.msp
+/.github/copilot-instructions.md
+
+# PlatformIO
+firmware/.pio/
+firmware/platformio_secrets.ini
+/deploy.ps1
