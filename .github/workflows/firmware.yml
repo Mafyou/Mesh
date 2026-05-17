@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - 'firmware/**'
+      - '.github/workflows/firmware.yml'
   workflow_dispatch:
 
 jobs:
