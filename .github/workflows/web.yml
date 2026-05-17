@@ -20,7 +20,7 @@ jobs:
           dotnet-version: '10.x'
 
       - name: Restore
-        run: dotnet restore src/Mesh.Web/Mesh.Web/Mesh.Web.csproj
+        run: dotnet restore src/Mesh.Web/Mesh.Web/Mesh.Web.csproj -r linux-x64
 
       - name: Publish
         run: dotnet publish src/Mesh.Web/Mesh.Web/Mesh.Web.csproj -c Release --self-contained true -r linux-x64 -o publish/web --no-restore
