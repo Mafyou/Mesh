@@ -4,9 +4,13 @@
     <File Path=".github/workflows/firmware.yml" />
     <File Path=".github/workflows/release.yml" />
     <File Path=".github/workflows/web.yml" />
+    <File Path="CODE_OF_CONDUCT.md" />
+    <File Path="CONTRIBUTING.md" />
     <File Path="deploy.ps1" />
     <File Path="design.md" />
+    <File Path="LICENSE.md" />
     <File Path="README.md" />
+    <File Path="SECURITY.md" />
   </Folder>
   <Folder Name="/Front/">
     <Project Path="src/Mesh.Mobile.Core/Mesh.Mobile.Core.csproj" Id="7c082e41-0111-4f0c-abfc-95c8bb1ad870" />
