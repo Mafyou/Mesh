@@ -1,0 +1,91 @@
+name: CI/CD
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    name: Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.x'
+
+      - name: Install Android workload
+        run: dotnet workload install android
+
+      - name: Restore
+        run: |
+          dotnet restore tests/Mesh.Tests/Mesh.Tests.csproj
+          dotnet restore tests/Mesh.Mobile.Core.UnitTests/Mesh.Mobile.Core.UnitTests.csproj
+
+      - name: Test
+        run: |
+          dotnet test tests/Mesh.Tests/Mesh.Tests.csproj --no-restore --verbosity normal
+          dotnet test tests/Mesh.Mobile.Core.UnitTests/Mesh.Mobile.Core.UnitTests.csproj --no-restore --verbosity normal
+
+  build-firmware:
+    name: Build Firmware
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install PlatformIO
+        run: pip install platformio
+
+      - name: Build
+        run: pio run -e heltec_wifi_lora_32_V3
+        working-directory: firmware
+
+      - name: Upload firmware artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: firmware-bin
+          path: firmware/.pio/build/heltec_wifi_lora_32_V3/firmware.bin
+
+  publish-web:
+    name: Publish Web
+    needs: [test, build-firmware]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.x'
+
+      - name: Download firmware artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: firmware-bin
+          path: firmware-bin
+
+      - name: Copy firmware to wwwroot
+        run: |
+          mkdir -p src/Mesh.Web/Mesh.Web/wwwroot/firmware
+          cp firmware-bin/firmware.bin src/Mesh.Web/Mesh.Web/wwwroot/firmware/Mesh.Core.bin
+
+      - name: Publish
+        run: dotnet publish src/Mesh.Web/Mesh.Web/Mesh.Web.csproj -c Release -o publish/web
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-app
+          path: publish/web
+
+        # AZURE_WEBAPP_NAME       : nom de la Web App Azure
+        # AZURE_WEBAPP_PUBLISH_PROFILE : contenu du profil de publication (.PublishSettings)
+
+      - name: Deploy to Azure
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: ${{ secrets.AZURE_WEBAPP_NAME }}
+          publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
+          package: publish/web

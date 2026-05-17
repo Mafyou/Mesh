@@ -1,0 +1,142 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:vm="clr-namespace:Mesh.Mobile.ViewModels"
+             xmlns:conv="clr-namespace:Mesh.Mobile.Converters"
+             xmlns:ble="clr-namespace:Plugin.BLE.Abstractions.Contracts;assembly=Plugin.BLE"
+             x:Class="Mesh.Mobile.Pages.NodesPage"
+             x:DataType="vm:NodesPageViewModel"
+             Title="Nœuds du réseau">
+
+    <ContentPage.Resources>
+        <conv:FirstCharConverter x:Key="FirstCharConverter" />
+    </ContentPage.Resources>
+
+    <Grid RowDefinitions="Auto,*"
+          RowSpacing="0">
+
+        <!-- Header -->
+        <StackLayout Grid.Row="0"
+                     Padding="16,16,16,12"
+                     Spacing="4"
+                     BackgroundColor="{AppThemeBinding Light={StaticResource LightCardBg}, Dark={StaticResource DarkCardBg}}">
+            <Label Text="Nœuds Mesh LoRa détectés via Bluetooth LE."
+                   Style="{StaticResource TextSmall}" />
+        </StackLayout>
+
+        <BoxView Grid.Row="0"
+                 Style="{StaticResource Separator}"
+                 Margin="0"
+                 VerticalOptions="End" />
+
+        <Grid Grid.Row="1"
+              RowDefinitions="Auto,*"
+              RowSpacing="8"
+              Padding="16,12,16,16">
+
+            <!-- Scan bar -->
+            <Grid Grid.Row="0"
+                  ColumnDefinitions="*,Auto"
+                  ColumnSpacing="8">
+                <Label Grid.Column="0"
+                       Text="{Binding StatusText}"
+                       Style="{StaticResource MicroLabel}"
+                       VerticalTextAlignment="Center" />
+                <Button Grid.Column="1"
+                        Text="{Binding ScanButtonText}"
+                        Command="{Binding ScanCommand}"
+                        IsEnabled="{Binding ScanButtonEnabled}"
+                        Style="{StaticResource ButtonPrimary}"
+                        HeightRequest="40"
+                        FontSize="14" />
+            </Grid>
+
+            <!-- Device list -->
+            <CollectionView Grid.Row="1"
+                            x:Name="DevicesCollectionView"
+                            ItemsSource="{Binding DiscoveredDevices}"
+                            SelectionMode="Single"
+                            SelectionChanged="OnDeviceSelected">
+
+                <CollectionView.ItemsLayout>
+                    <LinearItemsLayout Orientation="Vertical" ItemSpacing="8" />
+                </CollectionView.ItemsLayout>
+
+                <CollectionView.EmptyView>
+                    <StackLayout Padding="20,60"
+                                 Spacing="12"
+                                 HorizontalOptions="Center"
+                                 VerticalOptions="Center">
+                        <Label Text="📡"
+                               FontSize="48"
+                               HorizontalOptions="Center" />
+                        <Label Text="Aucun nœud Mesh détecté"
+                               Style="{StaticResource TitleCard}"
+                               HorizontalOptions="Center"
+                               HorizontalTextAlignment="Center" />
+                        <Label Text="Assurez-vous que votre ESP32 est allume, visible en BLE, et a portee du telephone."
+                               Style="{StaticResource MicroLabel}"
+                               HorizontalOptions="Center"
+                               HorizontalTextAlignment="Center"
+                               MaximumWidthRequest="280" />
+                    </StackLayout>
+                </CollectionView.EmptyView>
+
+                <CollectionView.ItemTemplate>
+                    <DataTemplate x:DataType="ble:IDevice">
+                        <Border Style="{StaticResource CardDefault}">
+                            <Grid ColumnDefinitions="Auto,*,Auto"
+                                  ColumnSpacing="12">
+
+                                <!-- Avatar -->
+                                <Border Grid.Column="0"
+                                        WidthRequest="44"
+                                        HeightRequest="44"
+                                        Padding="0"
+                                        StrokeThickness="0"
+                                        StrokeShape="RoundRectangle 12">
+                                    <Border.Background>
+                                        <LinearGradientBrush StartPoint="0,0" EndPoint="1,1">
+                                            <GradientStop Color="#2563EB" Offset="0" />
+                                            <GradientStop Color="#16A34A" Offset="1" />
+                                        </LinearGradientBrush>
+                                    </Border.Background>
+                                    <Label Text="{Binding Name, Converter={StaticResource FirstCharConverter}}"
+                                           TextColor="White"
+                                           FontAttributes="Bold"
+                                           FontSize="16"
+                                           HorizontalOptions="Center"
+                                           VerticalOptions="Center" />
+                                </Border>
+
+                                <!-- Info -->
+                                <StackLayout Grid.Column="1"
+                                             Spacing="3"
+                                             VerticalOptions="Center">
+                                    <Label Text="{Binding Name}"
+                                           Style="{StaticResource TitleCard}"
+                                           FontSize="15"
+                                           LineBreakMode="TailTruncation" />
+                                    <Label Text="{Binding Id}"
+                                           Style="{StaticResource MicroLabel}"
+                                           LineBreakMode="TailTruncation" />
+                                    <Label Text="{Binding Rssi, StringFormat='{0} dBm'}"
+                                           Style="{StaticResource MicroLabel}" />
+                                </StackLayout>
+
+                                <!-- Arrow -->
+                                <Label Grid.Column="2"
+                                       Text="›"
+                                       FontSize="24"
+                                       FontAttributes="Bold"
+                                       TextColor="{AppThemeBinding Light={StaticResource LightTextSecondary}, Dark={StaticResource DarkTextSecondary}}"
+                                       VerticalOptions="Center" />
+                            </Grid>
+                        </Border>
+                    </DataTemplate>
+                </CollectionView.ItemTemplate>
+            </CollectionView>
+        </Grid>
+
+    </Grid>
+</ContentPage>

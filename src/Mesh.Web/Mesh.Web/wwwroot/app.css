@@ -1,0 +1,12 @@
+@import url('mesh-design-system.css');
+
+.blazor-error-boundary {
+    background: var(--color-error);
+    padding: 0.75rem 1rem 0.75rem 3rem;
+    color: white;
+    font-size: 14px;
+}
+
+.blazor-error-boundary::after {
+    content: "Une erreur est survenue.";
+}

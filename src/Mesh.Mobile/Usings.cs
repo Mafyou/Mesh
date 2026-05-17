@@ -1,0 +1,10 @@
+﻿global using CommunityToolkit.Maui;
+global using CommunityToolkit.Mvvm.ComponentModel;
+global using CommunityToolkit.Mvvm.Input;
+global using Mesh.Mobile.Core.Models;
+global using Mesh.Mobile.Core.Services;
+global using Mesh.Mobile.Pages;
+global using Mesh.Mobile.ViewModels;
+global using Microsoft.Extensions.Logging;
+global using Plugin.BLE.Abstractions.Contracts;
+global using System.Collections.ObjectModel;

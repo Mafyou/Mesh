@@ -1,0 +1,254 @@
+@page "/flasher"
+@rendermode InteractiveServer
+@attribute [Authorize]
+@inject IJSRuntime JS
+@implements IAsyncDisposable
+
+<PageTitle>Flash Firmware — Mesh United</PageTitle>
+
+<div class="page-header">
+    <div>
+        <h1 class="page-title">Flash Firmware</h1>
+        <p class="page-sub">Programmez votre module ESP32 avec le firmware Mesh.Core</p>
+    </div>
+</div>
+
+@if (!_serialSupported)
+{
+    <div class="flasher-alert flasher-alert--error">
+        Web Serial API is not available in this browser.<br />
+        Use <strong>Chrome</strong> or <strong>Edge</strong> version 89 or later.
+    </div>
+}
+else
+{
+    <div class="flasher-container">
+
+        <section class="flasher-section">
+            <h2 class="flasher-step">1 — Firmware</h2>
+            <div class="flasher-actions" style="margin-bottom:.75rem">
+                <button class="flasher-btn flasher-btn--primary" @onclick="LoadLatestFirmware"
+                        disabled="@(_loadingFirmware || _state != FlashState.Idle)">
+                    @if (_loadingFirmware) { <span>Chargement…</span> } else { <span>Charger le dernier firmware</span> }
+                </button>
+                <span style="align-self:center;color:var(--color-text-secondary);font-size:13px">ou</span>
+                <InputFile OnChange="OnFirmwareSelected" accept=".bin" class="flasher-file-input" />
+            </div>
+            @if (_firmwareName is not null)
+            {
+                <span class="flasher-badge">@_firmwareName &nbsp;(@(_firmwareBytes!.Length / 1024) KB)</span>
+            }
+        </section>
+
+        <section class="flasher-section">
+            <h2 class="flasher-step">2 — Options</h2>
+            <label class="flasher-label">
+                Baud rate
+                <select class="flasher-select" @bind="_baudRate" disabled="@(_state != FlashState.Idle)">
+                    <option value="115200">115200</option>
+                    <option value="230400">230400</option>
+                    <option value="460800">460800 (recommended)</option>
+                    <option value="921600">921600</option>
+                </select>
+            </label>
+            <label class="flasher-label" style="margin-left:1.5rem">
+                Flash offset (hex)
+                <input class="flasher-input" type="text" @bind="_flashOffsetHex"
+                       disabled="@(_state != FlashState.Idle)" placeholder="0x10000" />
+            </label>
+        </section>
+
+        <section class="flasher-section">
+            <h2 class="flasher-step">3 — Flash</h2>
+            <div class="flasher-actions">
+                <button class="flasher-btn" @onclick="Connect"
+                        disabled="@(_state != FlashState.Idle)">
+                    Connect
+                </button>
+                <button class="flasher-btn flasher-btn--primary" @onclick="Flash"
+                        disabled="@(_state != FlashState.Connected || _firmwareBytes is null)">
+                    Flash
+                </button>
+                <button class="flasher-btn flasher-btn--danger" @onclick="Disconnect"
+                        disabled="@(_state == FlashState.Idle)">
+                    Disconnect
+                </button>
+            </div>
+            @if (_chipName is not null)
+            {
+                <span class="flasher-chip">Chip: @_chipName</span>
+            }
+        </section>
+
+        @if (_state == FlashState.Flashing)
+        {
+            <section class="flasher-section">
+                <progress class="flasher-progress" value="@_progress" max="100"></progress>
+                <span class="flasher-progress-label">@_progress%</span>
+            </section>
+        }
+
+        @if (_state == FlashState.Done)
+        {
+            <div class="flasher-alert flasher-alert--success">
+                Flash complete! The board has been reset and is now running the new firmware.
+            </div>
+        }
+
+        <pre class="flasher-log">@_log</pre>
+
+    </div>
+}
+
+@code {
+    private enum FlashState { Idle, Connected, Flashing, Done }
+
+    private IJSObjectReference? _module;
+    private DotNetObjectReference<Flasher>? _selfRef;
+
+    private bool _serialSupported;
+    private FlashState _state = FlashState.Idle;
+    private bool _loadingFirmware;
+
+    private byte[]? _firmwareBytes;
+    private string? _firmwareName;
+    private string _chipName = string.Empty;
+    private int _baudRate = 460800;
+    private string _flashOffsetHex = "0x10000";
+    private int _progress;
+    private string _log = string.Empty;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+
+        _module = await JS.InvokeAsync<IJSObjectReference>("import", "./flasher.js");
+        _selfRef = DotNetObjectReference.Create(this);
+        _serialSupported = await _module.InvokeAsync<bool>("isSerialSupported");
+        StateHasChanged();
+    }
+
+    private async Task LoadLatestFirmware()
+    {
+        if (_module is null) return;
+        _loadingFirmware = true;
+        try
+        {
+            var b64 = await _module.InvokeAsync<string>("loadFirmwareFromUrl", "/firmware/Mesh.Core.bin");
+            _firmwareBytes = Convert.FromBase64String(b64);
+            _firmwareName = "Mesh.Core.bin (dernier build)";
+            AppendLog($"Firmware chargé — {_firmwareBytes.Length / 1024} KB");
+        }
+        catch (Exception ex)
+        {
+            AppendLog($"Erreur de chargement : {ex.Message}");
+        }
+        finally
+        {
+            _loadingFirmware = false;
+        }
+    }
+
+    private async Task OnFirmwareSelected(InputFileChangeEventArgs e)
+    {
+        var file = e.File;
+        using var ms = new MemoryStream();
+        await using var stream = file.OpenReadStream(maxAllowedSize: 4 * 1024 * 1024);
+        await stream.CopyToAsync(ms);
+        _firmwareBytes = ms.ToArray();
+        _firmwareName = file.Name;
+    }
+
+    private async Task Connect()
+    {
+        if (_module is null) return;
+        AppendLog("Connecting…");
+        try
+        {
+            _chipName = await _module.InvokeAsync<string>("connect", _baudRate, _selfRef);
+            _state = FlashState.Connected;
+            AppendLog($"Connected — {_chipName}");
+        }
+        catch (Exception ex)
+        {
+            AppendLog($"Error: {ex.Message}");
+        }
+    }
+
+    private async Task Flash()
+    {
+        if (_module is null || _firmwareBytes is null) return;
+
+        var offset = ParseOffset(_flashOffsetHex);
+        if (offset < 0)
+        {
+            AppendLog($"Invalid flash offset: {_flashOffsetHex}");
+            return;
+        }
+
+        _state = FlashState.Flashing;
+        _progress = 0;
+        AppendLog($"Flashing {_firmwareName} → 0x{offset:X} …");
+
+        try
+        {
+            var b64 = Convert.ToBase64String(_firmwareBytes);
+            await _module.InvokeVoidAsync("flash", b64, offset, _selfRef);
+            _state = FlashState.Done;
+            AppendLog("Done.");
+        }
+        catch (Exception ex)
+        {
+            _state = FlashState.Connected;
+            AppendLog($"Flash error: {ex.Message}");
+        }
+    }
+
+    private async Task Disconnect()
+    {
+        if (_module is null) return;
+        try { await _module.InvokeVoidAsync("disconnect"); } catch { /* ignore */ }
+        _state = FlashState.Idle;
+        _chipName = string.Empty;
+        AppendLog("Disconnected.");
+    }
+
+    [JSInvokable]
+    public void OnProgress(int pct)
+    {
+        _progress = pct;
+        InvokeAsync(StateHasChanged);
+    }
+
+    [JSInvokable]
+    public void OnLog(string message)
+    {
+        AppendLog(message);
+        InvokeAsync(StateHasChanged);
+    }
+
+    private void AppendLog(string line)
+    {
+        _log += line + "\n";
+        if (_log.Length > 8000)
+            _log = _log[(_log.Length - 6000)..];
+    }
+
+    private static int ParseOffset(string hex)
+    {
+        hex = hex.Trim();
+        if (hex.StartsWith("0x", StringComparison.OrdinalIgnoreCase))
+            hex = hex[2..];
+        return int.TryParse(hex, System.Globalization.NumberStyles.HexNumber, null, out var v) ? v : -1;
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_module is not null)
+        {
+            try { await _module.InvokeVoidAsync("disconnect"); } catch { /* ignore */ }
+            await _module.DisposeAsync();
+        }
+        _selfRef?.Dispose();
+    }
+}

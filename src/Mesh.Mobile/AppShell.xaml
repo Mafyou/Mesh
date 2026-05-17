@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<Shell
+    x:Class="Mesh.Mobile.AppShell"
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+    xmlns:pages="clr-namespace:Mesh.Mobile.Pages"
+    Title="Mesh United"
+    NavBarHasShadow="False"
+    FlyoutBehavior="Disabled">
+
+    <TabBar>
+        <ShellContent
+            Title="Messages"
+            ContentTemplate="{DataTemplate pages:MessagesPage}"
+            Route="MessagesPage" />
+
+        <ShellContent
+            Title="Réseau"
+            ContentTemplate="{DataTemplate pages:NetworkPage}"
+            Route="NetworkPage" />
+
+        <ShellContent
+            Title="Nœuds"
+            ContentTemplate="{DataTemplate pages:NodesPage}"
+            Route="NodesPage" />
+
+        <ShellContent
+            Title="Paramètres"
+            ContentTemplate="{DataTemplate pages:SettingsPage}"
+            Route="SettingsPage" />
+    </TabBar>
+
+</Shell>

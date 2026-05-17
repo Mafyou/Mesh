@@ -1,0 +1,48 @@
+#pragma once
+
+#include <stdint.h>
+#include "esp_err.h"
+
+#define MESH_BROADCAST      0xFF
+#define MESH_TTL_DEFAULT    3
+#define MESH_TTL_MAX        7
+#define MESH_PAYLOAD_MAX    220
+#define MESH_HISTORY_SIZE   32
+
+typedef enum {
+    MESH_TYPE_MSG  = 0,
+    MESH_TYPE_ACK  = 1,
+    MESH_TYPE_PING = 2,
+} mesh_type_t;
+
+/*
+ * Wire format (packed):
+ *   flags   [7:6] version=0  [5:2] type  [1:0] reserved
+ *   src     source node ID (1 byte, 0x00-0xFE; 0xFF = broadcast)
+ *   dst     destination node ID (0xFF = broadcast)
+ *   ttl     decremented at each hop, dropped when reaches 0
+ *   seq     16-bit sequence number (little-endian) for deduplication
+ *   len     payload length in bytes
+ *   payload[len]
+ */
+typedef struct __attribute__((packed)) {
+    uint8_t  flags;
+    uint8_t  src;
+    uint8_t  dst;
+    uint8_t  ttl;
+    uint16_t seq;
+    uint8_t  len;
+    uint8_t  payload[MESH_PAYLOAD_MAX];
+} mesh_packet_t;
+
+#define MESH_HEADER_SIZE  (sizeof(mesh_packet_t) - MESH_PAYLOAD_MAX)
+
+typedef void (*mesh_rx_cb_t)(uint8_t src, uint8_t dst, mesh_type_t type,
+                             const uint8_t *payload, uint8_t len);
+
+/* node_id = 0 → auto-assigned from the last byte of the ESP32 base MAC */
+esp_err_t mesh_init(uint8_t node_id);
+uint8_t   mesh_node_id(void);
+void      mesh_set_rx_cb(mesh_rx_cb_t cb);
+esp_err_t mesh_send(uint8_t dst, mesh_type_t type, const uint8_t *payload, uint8_t len);
+void      mesh_process(void);

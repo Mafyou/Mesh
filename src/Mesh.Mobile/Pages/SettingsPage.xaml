@@ -1,0 +1,147 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:vm="clr-namespace:Mesh.Mobile.ViewModels"
+             x:Class="Mesh.Mobile.Pages.SettingsPage"
+             x:DataType="vm:SettingsPageViewModel"
+             Title="Paramètres">
+
+    <Grid RowDefinitions="Auto,*"
+          RowSpacing="0">
+
+        <StackLayout Grid.Row="0"
+                     Padding="16,16,16,12"
+                     Spacing="4"
+                     BackgroundColor="{AppThemeBinding Light={StaticResource LightCardBg}, Dark={StaticResource DarkCardBg}}">
+            <Label Text="Personnalisez l'application selon vos préférences."
+                   Style="{StaticResource TextSmall}" />
+        </StackLayout>
+
+        <BoxView Grid.Row="0"
+                 Style="{StaticResource Separator}"
+                 Margin="0"
+                 VerticalOptions="End" />
+
+        <ScrollView Grid.Row="1">
+            <StackLayout Padding="16"
+                         Spacing="16">
+
+                <!-- Profil -->
+                <StackLayout Spacing="8">
+                    <Label Text="Profil"
+                           Style="{StaticResource TitleCard}" />
+                    <Border Style="{StaticResource CardDefault}">
+                        <StackLayout Spacing="8">
+                            <Label Text="Mon alias"
+                                   Style="{StaticResource TextSmall}" />
+                            <Label Text="Préfixe vos messages sur le réseau Mesh"
+                                   Style="{StaticResource MicroLabel}" />
+                            <Entry Style="{StaticResource InputDefault}"
+                                   Keyboard="Chat"
+                                   Placeholder="Votre alias…"
+                                   MaxLength="20"
+                                   Text="{Binding UserAlias}"
+                                   ClearButtonVisibility="WhileEditing" />
+                        </StackLayout>
+                    </Border>
+                </StackLayout>
+
+                <BoxView Style="{StaticResource Separator}" />
+
+                <!-- Apparence -->
+                <StackLayout Spacing="8">
+                    <Label Text="Apparence"
+                           Style="{StaticResource TitleCard}" />
+                    <Border Style="{StaticResource CardDefault}">
+                        <Grid ColumnDefinitions="*,Auto"
+                              ColumnSpacing="12">
+                            <StackLayout Grid.Column="0" Spacing="2">
+                                <Label Text="Mode sombre"
+                                       Style="{StaticResource TextSmall}" />
+                                <Label Text="Affichage confortable en faible luminosité"
+                                       Style="{StaticResource MicroLabel}" />
+                            </StackLayout>
+                            <Switch Grid.Column="1"
+                                    IsToggled="{Binding DarkModeEnabled}"
+                                    VerticalOptions="Center" />
+                        </Grid>
+                    </Border>
+                    <Border Style="{StaticResource CardDefault}">
+                        <Grid ColumnDefinitions="*,Auto"
+                              ColumnSpacing="12">
+                            <StackLayout Grid.Column="0" Spacing="2">
+                                <Label Text="Notifications"
+                                       Style="{StaticResource TextSmall}" />
+                                <Label Text="Alertes à la réception d'un message Mesh"
+                                       Style="{StaticResource MicroLabel}" />
+                            </StackLayout>
+                            <Switch Grid.Column="1"
+                                    IsToggled="{Binding NotificationsEnabled}"
+                                    VerticalOptions="Center" />
+                        </Grid>
+                    </Border>
+                </StackLayout>
+
+                <BoxView Style="{StaticResource Separator}" />
+
+                <!-- Noeud connecte -->
+                <StackLayout Spacing="8">
+                    <Label Text="Nœud actif"
+                           Style="{StaticResource TitleCard}" />
+                    <Border Style="{StaticResource CardDefault}">
+                        <Grid ColumnDefinitions="Auto,*"
+                              ColumnSpacing="12">
+                            <Border Grid.Column="0"
+                                    WidthRequest="10"
+                                    HeightRequest="10"
+                                    Padding="0"
+                                    BackgroundColor="{Binding ConnectedDotColor}"
+                                    StrokeThickness="0"
+                                    StrokeShape="RoundRectangle 5"
+                                    VerticalOptions="Center" />
+                            <Label Grid.Column="1"
+                                   Text="{Binding ConnectedNodeText}"
+                                   Style="{StaticResource TextSmall}"
+                                   VerticalOptions="Center" />
+                        </Grid>
+                    </Border>
+                </StackLayout>
+
+                <BoxView Style="{StaticResource Separator}" />
+
+                <!-- Informations -->
+                <StackLayout Spacing="8">
+                    <Label Text="Informations"
+                           Style="{StaticResource TitleCard}" />
+                    <Border Style="{StaticResource CardDefault}">
+                        <Grid ColumnDefinitions="*,Auto"
+                              ColumnSpacing="12">
+                            <Label Grid.Column="0"
+                                   Text="Version de l'application"
+                                   Style="{StaticResource TextSmall}" />
+                            <Label Grid.Column="1"
+                                   Text="{Binding AppVersion}"
+                                   Style="{StaticResource MicroLabel}" />
+                        </Grid>
+                    </Border>
+                    <Button Text="Diagnostics BLE"
+                            Command="{Binding RunDiagnosticsCommand}"
+                            Style="{StaticResource ButtonSecondary}" />
+                    <Label Text="{Binding DiagnosticsStatusText}"
+                           Style="{StaticResource MicroLabel}"
+                           HorizontalOptions="Center" />
+                </StackLayout>
+
+                <BoxView Style="{StaticResource Separator}" />
+
+                <!-- Enregistrer -->
+                <Button Text="Enregistrer"
+                        Command="{Binding SaveCommand}"
+                        Style="{StaticResource ButtonPrimary}"
+                        Margin="0,4,0,8" />
+
+            </StackLayout>
+        </ScrollView>
+
+    </Grid>
+</ContentPage>

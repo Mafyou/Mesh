@@ -1,0 +1,136 @@
+.nav-brand {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 18px 16px;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.brand-icon {
+    width: 42px;
+    height: 42px;
+    background: rgba(255, 255, 255, 0.18);
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.brand-text {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+}
+
+.brand-name {
+    font-weight: 700;
+    font-size: 15px;
+    color: white;
+    line-height: 1.2;
+    letter-spacing: -0.01em;
+}
+
+.brand-sub {
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.55);
+    font-weight: 500;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+}
+
+/* Mobile toggle */
+.nav-toggle-input {
+    display: none;
+}
+
+.nav-toggle-label {
+    display: none;
+    cursor: pointer;
+    padding: 10px 14px;
+    position: absolute;
+    top: 12px;
+    right: 8px;
+}
+
+/* Nav links */
+.nav-links {
+    display: flex;
+    flex-direction: column;
+    padding: 10px 8px;
+    gap: 2px;
+    flex: 1;
+}
+
+::deep .nav-item {
+    display: flex;
+    align-items: center;
+    gap: 11px;
+    padding: 10px 14px;
+    color: rgba(255, 255, 255, 0.72);
+    border-radius: 10px;
+    font-size: 14px;
+    font-weight: 500;
+    text-decoration: none;
+    transition: background-color 0.15s, color 0.15s;
+    white-space: nowrap;
+}
+
+::deep .nav-item:hover {
+    background: rgba(255, 255, 255, 0.13);
+    color: white;
+    text-decoration: none;
+}
+
+::deep .nav-item.active {
+    background: rgba(255, 255, 255, 0.22);
+    color: white;
+    font-weight: 600;
+}
+
+/* Footer */
+.nav-footer {
+    padding: 14px 16px;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    color: rgba(255, 255, 255, 0.38);
+    font-size: 12px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.nav-footer a {
+    color: rgba(255, 255, 255, 0.55);
+    text-decoration: none;
+}
+
+.nav-footer a:hover {
+    color: white;
+}
+
+.nav-sep {
+    opacity: 0.4;
+}
+
+/* Mobile */
+@media (max-width: 768px) {
+    .nav-toggle-label {
+        display: flex;
+    }
+
+    .nav-links {
+        display: none;
+    }
+
+    .nav-toggle-input:checked ~ .nav-links {
+        display: flex;
+    }
+
+    .nav-footer {
+        display: none;
+    }
+
+    .nav-toggle-input:checked ~ .nav-footer {
+        display: flex;
+    }
+}

@@ -1,0 +1,98 @@
+﻿<?xml version="1.0" encoding="UTF-8" ?>
+<ResourceDictionary 
+    xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+    xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml">
+
+    <!-- Mesh United Design System - Palette Couleurs -->
+
+    <!-- Mode Clair - Fonds -->
+    <Color x:Key="LightBgPrimary">#F5F7FA</Color>
+    <Color x:Key="LightBgSecondary">#E9EEF4</Color>
+    <Color x:Key="LightCardBg">#FFFFFF</Color>
+
+    <!-- Mode Clair - Texte -->
+    <Color x:Key="LightTextPrimary">#0F172A</Color>
+    <Color x:Key="LightTextSecondary">#64748B</Color>
+
+    <!-- Mode Clair - Sémantique -->
+    <Color x:Key="LightPrimaryNetwork">#2563EB</Color>
+    <Color x:Key="LightAccentLora">#16A34A</Color>
+    <Color x:Key="LightAccentSignal">#0EA5E9</Color>
+    <Color x:Key="LightAttention">#D97706</Color>
+    <Color x:Key="LightSuccess">#22C55E</Color>
+    <Color x:Key="LightError">#DC2626</Color>
+    <Color x:Key="LightSeparator">#DCE3EC</Color>
+
+    <!-- Mode Sombre - Fonds -->
+    <Color x:Key="DarkBgPrimary">#0B1220</Color>
+    <Color x:Key="DarkBgSecondary">#121A2B</Color>
+    <Color x:Key="DarkCardBg">#182235</Color>
+
+    <!-- Mode Sombre - Texte -->
+    <Color x:Key="DarkTextPrimary">#F8FAFC</Color>
+    <Color x:Key="DarkTextSecondary">#94A3B8</Color>
+
+    <!-- Mode Sombre - Sémantique -->
+    <Color x:Key="DarkPrimaryNetwork">#60A5FA</Color>
+    <Color x:Key="DarkAccentLora">#4ADE80</Color>
+    <Color x:Key="DarkAccentSignal">#38BDF8</Color>
+    <Color x:Key="DarkAttention">#F59E0B</Color>
+    <Color x:Key="DarkSuccess">#4ADE80</Color>
+    <Color x:Key="DarkError">#F87171</Color>
+    <Color x:Key="DarkSeparator">#243146</Color>
+
+    <!-- Aliases de compatibilité et composants -->
+    <Color x:Key="White">White</Color>
+    <Color x:Key="Black">Black</Color>
+    <Color x:Key="Primary">#2563EB</Color>
+    <Color x:Key="Success">#22C55E</Color>
+    <Color x:Key="Warning">#D97706</Color>
+    <Color x:Key="Error">#DC2626</Color>
+
+    <!-- Couleurs de statut BLE -->
+    <Color x:Key="StatusConnected">#16A34A</Color>
+    <Color x:Key="StatusDisconnected">#64748B</Color>
+    <Color x:Key="StatusScanning">#2563EB</Color>
+    <Color x:Key="StatusError">#DC2626</Color>
+
+    <!-- Brushes de mode clair -->
+    <SolidColorBrush x:Key="LightBgPrimaryBrush" Color="{StaticResource LightBgPrimary}"/>
+    <SolidColorBrush x:Key="LightBgSecondaryBrush" Color="{StaticResource LightBgSecondary}"/>
+    <SolidColorBrush x:Key="LightCardBgBrush" Color="{StaticResource LightCardBg}"/>
+    <SolidColorBrush x:Key="LightTextPrimaryBrush" Color="{StaticResource LightTextPrimary}"/>
+    <SolidColorBrush x:Key="LightTextSecondaryBrush" Color="{StaticResource LightTextSecondary}"/>
+    <SolidColorBrush x:Key="LightPrimaryNetworkBrush" Color="{StaticResource LightPrimaryNetwork}"/>
+    <SolidColorBrush x:Key="LightAccentLoraBrush" Color="{StaticResource LightAccentLora}"/>
+    <SolidColorBrush x:Key="LightAccentSignalBrush" Color="{StaticResource LightAccentSignal}"/>
+    <SolidColorBrush x:Key="LightSeparatorBrush" Color="{StaticResource LightSeparator}"/>
+
+    <!-- Brushes de mode sombre -->
+    <SolidColorBrush x:Key="DarkBgPrimaryBrush" Color="{StaticResource DarkBgPrimary}"/>
+    <SolidColorBrush x:Key="DarkBgSecondaryBrush" Color="{StaticResource DarkBgSecondary}"/>
+    <SolidColorBrush x:Key="DarkCardBgBrush" Color="{StaticResource DarkCardBg}"/>
+    <SolidColorBrush x:Key="DarkTextPrimaryBrush" Color="{StaticResource DarkTextPrimary}"/>
+    <SolidColorBrush x:Key="DarkTextSecondaryBrush" Color="{StaticResource DarkTextSecondary}"/>
+    <SolidColorBrush x:Key="DarkPrimaryNetworkBrush" Color="{StaticResource DarkPrimaryNetwork}"/>
+    <SolidColorBrush x:Key="DarkAccentLoraBrush" Color="{StaticResource DarkAccentLora}"/>
+    <SolidColorBrush x:Key="DarkAccentSignalBrush" Color="{StaticResource DarkAccentSignal}"/>
+    <SolidColorBrush x:Key="DarkSeparatorBrush" Color="{StaticResource DarkSeparator}"/>
+
+    <!-- Theme-aware brushes -->
+    <SolidColorBrush x:Key="BgPrimaryBrush" Color="{AppThemeBinding Light={StaticResource LightBgPrimary}, Dark={StaticResource DarkBgPrimary}}"/>
+    <SolidColorBrush x:Key="BgSecondaryBrush" Color="{AppThemeBinding Light={StaticResource LightBgSecondary}, Dark={StaticResource DarkBgSecondary}}"/>
+    <SolidColorBrush x:Key="CardBgBrush" Color="{AppThemeBinding Light={StaticResource LightCardBg}, Dark={StaticResource DarkCardBg}}"/>
+    <SolidColorBrush x:Key="TextPrimaryBrush" Color="{AppThemeBinding Light={StaticResource LightTextPrimary}, Dark={StaticResource DarkTextPrimary}}"/>
+    <SolidColorBrush x:Key="TextSecondaryBrush" Color="{AppThemeBinding Light={StaticResource LightTextSecondary}, Dark={StaticResource DarkTextSecondary}}"/>
+    <SolidColorBrush x:Key="PrimaryNetworkBrush" Color="{AppThemeBinding Light={StaticResource LightPrimaryNetwork}, Dark={StaticResource DarkPrimaryNetwork}}"/>
+    <SolidColorBrush x:Key="AccentLoraBrush" Color="{AppThemeBinding Light={StaticResource LightAccentLora}, Dark={StaticResource DarkAccentLora}}"/>
+    <SolidColorBrush x:Key="AccentSignalBrush" Color="{AppThemeBinding Light={StaticResource LightAccentSignal}, Dark={StaticResource DarkAccentSignal}}"/>
+    <SolidColorBrush x:Key="AttentionBrush" Color="{AppThemeBinding Light={StaticResource LightAttention}, Dark={StaticResource DarkAttention}}"/>
+    <SolidColorBrush x:Key="SuccessBrush" Color="{AppThemeBinding Light={StaticResource LightSuccess}, Dark={StaticResource DarkSuccess}}"/>
+    <SolidColorBrush x:Key="ErrorBrush" Color="{AppThemeBinding Light={StaticResource LightError}, Dark={StaticResource DarkError}}"/>
+    <SolidColorBrush x:Key="SeparatorBrush" Color="{AppThemeBinding Light={StaticResource LightSeparator}, Dark={StaticResource DarkSeparator}}"/>
+
+    <!-- White and Black brushes -->
+    <SolidColorBrush x:Key="WhiteBrush" Color="{StaticResource White}"/>
+    <SolidColorBrush x:Key="BlackBrush" Color="{StaticResource Black}"/>
+
+</ResourceDictionary>

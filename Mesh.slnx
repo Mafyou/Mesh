@@ -1,0 +1,21 @@
+<Solution>
+  <Folder Name="/Extras/">
+    <File Path=".github/copilot-instructions.md" />
+    <File Path=".github/workflows/CICD.yml" />
+    <File Path="deploy.ps1" />
+    <File Path="design.md" />
+    <File Path="README.md" />
+  </Folder>
+  <Folder Name="/Front/">
+    <Project Path="src/Mesh.Mobile.Core/Mesh.Mobile.Core.csproj" Id="7c082e41-0111-4f0c-abfc-95c8bb1ad870" />
+    <Project Path="src/Mesh.Mobile/Mesh.Mobile.csproj" Id="0942170a-60ad-4030-b3d0-2a2d3460fc59">
+      <Deploy Solution="Debug|*" />
+    </Project>
+    <Project Path="src/Mesh.Web/Mesh.Web.Client/Mesh.Web.Client.csproj" Id="0457d30f-c1e2-49e8-bef7-a4f147b17334" />
+    <Project Path="src/Mesh.Web/Mesh.Web/Mesh.Web.csproj" Id="23231436-e934-43e2-b563-df4e93fa6650" />
+  </Folder>
+  <Folder Name="/Tests/">
+    <Project Path="tests/Mesh.Mobile.Core.UnitTests/Mesh.Mobile.Core.UnitTests.csproj" Id="78a8e3d4-7ad3-460a-95de-ef46ac97934b" />
+    <Project Path="tests/Mesh.Tests/Mesh.Tests.csproj" />
+  </Folder>
+</Solution>

@@ -433,3 +433,9 @@ FodyWeavers.xsd
 firmware/.pio/
 firmware/platformio_secrets.ini
 /deploy.ps1
+
+# Claude Code local settings
+/.claude/
+
+# Android signed build outputs (APK/AAB — never commit signed binaries)
+/aab_output/
