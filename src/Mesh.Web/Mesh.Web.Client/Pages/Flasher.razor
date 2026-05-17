@@ -66,9 +66,9 @@ else
                                disabled="@(_state != FlashState.Idle)"
                                placeholder="https://github.com/…/releases/latest/download/…bin" />
                     </label>
-                    <a class="flasher-btn" href="https://meshcore.co.uk/configurator/"
+                    <a class="flasher-btn" href="https://github.com/meshcore-dev/MeshCore/releases"
                        target="_blank" rel="noopener" style="align-self:flex-end">
-                        Flash web ↗
+                        Releases ↗
                     </a>
                 </div>
             }
@@ -157,6 +157,7 @@ else
     private ElementReference _fileInput;
 
     private bool _serialSupported;
+    private bool _fileInputReady;
     private FlashState _state = FlashState.Idle;
     private bool _loadingFirmware;
     private FirmwareTarget _firmwareTarget = FirmwareTarget.MeshUnited;
@@ -172,14 +173,22 @@ else
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
-        if (!firstRender) return;
+        if (firstRender)
+        {
+            _module  = await JS.InvokeAsync<IJSObjectReference>("import", "./flasher.js");
+            _selfRef = DotNetObjectReference.Create(this);
+            _serialSupported = await _module.InvokeAsync<bool>("isSerialSupported");
+            // Trigger a second render so the file input enters the DOM before we wire it.
+            StateHasChanged();
+            return;
+        }
 
-        _module = await JS.InvokeAsync<IJSObjectReference>("import", "./flasher.js");
-        _selfRef = DotNetObjectReference.Create(this);
-        _serialSupported = await _module.InvokeAsync<bool>("isSerialSupported");
-        if (_serialSupported)
+        // Second pass: file input is now in the DOM.
+        if (_serialSupported && !_fileInputReady && _module is not null && _selfRef is not null)
+        {
+            _fileInputReady = true;
             await _module.InvokeVoidAsync("setupFileInput", _fileInput, _selfRef);
-        StateHasChanged();
+        }
     }
 
     private async Task LoadLatestFirmware()
