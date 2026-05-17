@@ -1,7 +1,7 @@
+using System.Buffers.Binary;
+using System.Text;
 using Mesh.Mobile.Core;
 using Shouldly;
-using System.Text;
-using System.Buffers.Binary;
 
 namespace Mesh.Mobile.Core.UnitTests;
 
@@ -61,14 +61,57 @@ public class MeshProtocolTests
     }
 
     [Fact]
-    public void DecodeNotify_SrcChannelTypeOnly_ReturnsEmptyText()
+    public void DecodeNotify_RawMsgWithoutVersion_ReturnsUtf8Text()
     {
-        var data = new byte[] { 0x20, 0x00, (byte)MeshPacketType.Msg };
+        var data = new byte[] { 0x20, 0x01, (byte)MeshPacketType.Msg }
+            .Concat(Encoding.UTF8.GetBytes("raw")).ToArray();
 
         var result = MeshProtocol.DecodeNotify(data);
 
         result.ShouldNotBeNull();
         result!.Value.Src.ShouldBe((byte)0x20);
+        result.Value.Channel.ShouldBe((byte)0x01);
+        result.Value.Type.ShouldBe(MeshPacketType.Msg);
+        result.Value.Text.ShouldBe("raw");
+        result.Value.SentAt.ShouldBeNull();
+    }
+
+    [Fact]
+    public void DecodeNotify_NonMsgPacket_ReturnsEmptyText()
+    {
+        var data = new byte[] { 0x20, 0x01, (byte)MeshPacketType.Ack, 0xAA, 0xBB, 0xCC };
+
+        var result = MeshProtocol.DecodeNotify(data);
+
+        result.ShouldNotBeNull();
+        result!.Value.Src.ShouldBe((byte)0x20);
+        result.Value.Channel.ShouldBe((byte)0x01);
+        result.Value.Type.ShouldBe(MeshPacketType.Ack);
+        result.Value.Text.ShouldBe(string.Empty);
+        result.Value.SentAt.ShouldBeNull();
+    }
+
+    [Fact]
+    public void DecodeNotify_PingPacket_ReturnsEmptyText()
+    {
+        var data = new byte[] { 0x20, 0x01, (byte)MeshPacketType.Ping, 0x01, 0x02, 0x03, 0x04 };
+
+        var result = MeshProtocol.DecodeNotify(data);
+
+        result.ShouldNotBeNull();
+        result!.Value.Type.ShouldBe(MeshPacketType.Ping);
+        result.Value.Text.ShouldBe(string.Empty);
+    }
+
+    [Fact]
+    public void DecodeNotify_NeighborsPacket_ReturnsEmptyText()
+    {
+        var data = new byte[] { 0x20, 0x01, (byte)MeshPacketType.Neighbors, 0x01, 0x2A, unchecked((byte)-42), 0x05 };
+
+        var result = MeshProtocol.DecodeNotify(data);
+
+        result.ShouldNotBeNull();
+        result!.Value.Type.ShouldBe(MeshPacketType.Neighbors);
         result.Value.Text.ShouldBe(string.Empty);
     }
 

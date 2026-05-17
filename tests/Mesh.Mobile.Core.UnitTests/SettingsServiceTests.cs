@@ -3,6 +3,7 @@ using Shouldly;
 
 namespace Mesh.Mobile.Core.UnitTests;
 
+[Collection("SettingsService")]
 public class SettingsServiceTests
 {
     [Fact]
@@ -85,4 +86,5 @@ public class SettingsServiceTests
         nodeIds.ShouldHaveSingleItem();
         nodeIds[0].ShouldBe("AB");
     }
-}
+
+    }
