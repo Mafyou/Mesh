@@ -6,6 +6,8 @@ on:
     paths:
       - 'firmware/**'
       - 'src/Mesh.Web/**'
+      - 'src/Mesh.Mobile/**'
+      - 'src/Mesh.Mobile.Core/**'
       - '.github/workflows/release.yml'
   workflow_dispatch:
 
@@ -29,9 +31,14 @@ jobs:
           name: firmware-bin
           path: firmware/.pio/build/heltec_wifi_lora_32_V3/firmware.bin
 
+  build-android:
+    name: Build Android AAB
+    uses: ./.github/workflows/android.yml
+    secrets: inherit
+
   publish-web:
     name: Publish Web
-    needs: [build-firmware]
+    needs: [build-firmware, build-android]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -54,6 +61,17 @@ jobs:
           mkdir -p src/Mesh.Web/Mesh.Web/wwwroot/firmware
           cp firmware-bin/firmware.bin src/Mesh.Web/Mesh.Web/wwwroot/firmware/Mesh.Core.bin
 
+      - name: Download AAB artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: android-aab
+          path: android-aab
+
+      - name: Copy AAB to wwwroot
+        run: |
+          mkdir -p src/Mesh.Web/Mesh.Web/wwwroot/app
+          cp android-aab/MeshUnited.aab src/Mesh.Web/Mesh.Web/wwwroot/app/MeshUnited.aab
+
       - name: Publish
         run: dotnet publish src/Mesh.Web/Mesh.Web/Mesh.Web.csproj -c Release --self-contained false -o publish/web --no-restore
 
@@ -65,6 +83,8 @@ jobs:
 
       # AZURE_WEBAPP_NAME            : nom de la Web App Azure
       # AZURE_WEBAPP_PUBLISH_PROFILE : contenu du profil de publication (.PublishSettings)
+      # ANDROID_KEYSTORE_BASE64      : keystore Mafyou encodé en base64 (base64 Mafyou.keystore)
+      # ANDROID_KEY_PASSWORD         : mot de passe du keystore et de la clé
       - name: Deploy to Azure
         uses: azure/webapps-deploy@v3
         with:

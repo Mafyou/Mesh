@@ -50,12 +50,20 @@ static bool IsAllowedFirmwareHost(string host) =>
     host.EndsWith(".github.com", StringComparison.OrdinalIgnoreCase) ||
     host.EndsWith(".githubusercontent.com", StringComparison.OrdinalIgnoreCase);
 
-// Sert les fichiers ajoutés dynamiquement (ex. firmware) sans interférer avec MapStaticAssets
+// Sert les fichiers ajoutés dynamiquement (firmware, app) sans interférer avec MapStaticAssets
 app.MapGet("/firmware/{filename}", (string filename, IWebHostEnvironment env) =>
 {
     var path = Path.Combine(env.WebRootPath, "firmware", filename);
     return File.Exists(path)
-        ? Results.File(path, "application/octet-stream")
+        ? Results.File(path, "application/octet-stream", fileDownloadName: filename)
+        : Results.NotFound();
+});
+
+app.MapGet("/app/{filename}", (string filename, IWebHostEnvironment env) =>
+{
+    var path = Path.Combine(env.WebRootPath, "app", filename);
+    return File.Exists(path)
+        ? Results.File(path, "application/octet-stream", fileDownloadName: filename)
         : Results.NotFound();
 });
 

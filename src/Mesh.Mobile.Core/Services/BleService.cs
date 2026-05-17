@@ -150,8 +150,7 @@ public class BleService
 
     private void OnDeviceDiscovered(object? sender, DeviceEventArgs e)
     {
-        // Accept Mesh United nodes ("Mesh-XX") and MeshCore nodes (any other named device).
-        if (string.IsNullOrWhiteSpace(e.Device.Name)) return;
+        if (!AdvertisesNusService(e.Device)) return;
 
         if (DiscoveredDevices.All(device => device.Id != e.Device.Id))
         {
@@ -161,6 +160,32 @@ public class BleService
                 DevicesUpdated?.Invoke(this, EventArgs.Empty);
             });
         }
+    }
+
+    private static bool AdvertisesNusService(IDevice device)
+    {
+        // Accept our own firmware nodes by name prefix (fast path — no UUID parsing needed)
+        if (!string.IsNullOrWhiteSpace(device.Name) &&
+            device.Name.StartsWith("Mesh-", StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        // Accept any device that advertises the NUS service UUID.
+        // NimBLE places the 128-bit UUID in the scan response, not the primary advertisement;
+        // Plugin.BLE merges both into AdvertisementRecords, so we can still match here.
+        var nusBytes = NusServiceUuid.ToByteArray();
+        return device.AdvertisementRecords.Any(r =>
+            (r.Type == AdvertisementRecordType.UuidsComplete128Bit ||
+             r.Type == AdvertisementRecordType.UuidsIncomplete128Bit) &&
+            ContainsUuid128(r.Data, nusBytes));
+    }
+
+    private static bool ContainsUuid128(byte[]? data, byte[] uuid)
+    {
+        if (data is null || data.Length < 16) return false;
+        for (var i = 0; i <= data.Length - 16; i += 16)
+            if (data.AsSpan(i, 16).SequenceEqual(uuid))
+                return true;
+        return false;
     }
 
     private async void OnDeviceConnected(object? sender, DeviceEventArgs e)
