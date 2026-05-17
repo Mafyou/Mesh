@@ -202,8 +202,9 @@ else
 
             if (_firmwareTarget == FirmwareTarget.MeshCore)
             {
-                url   = _meshCoreUrl.Trim();
-                label = url.Split('/').LastOrDefault() ?? "MeshCore.bin";
+                var raw = _meshCoreUrl.Trim();
+                label = raw.Split('/').LastOrDefault() ?? "MeshCore.bin";
+                url   = "/api/firmware-proxy?url=" + Uri.EscapeDataString(raw);
             }
             else
             {
