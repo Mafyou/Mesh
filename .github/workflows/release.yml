@@ -54,7 +54,7 @@ jobs:
           cp firmware-bin/firmware.bin src/Mesh.Web/Mesh.Web/wwwroot/firmware/Mesh.Core.bin
 
       - name: Publish
-        run: dotnet publish src/Mesh.Web/Mesh.Web/Mesh.Web.csproj -c Release -o publish/web --no-restore
+        run: dotnet publish src/Mesh.Web/Mesh.Web/Mesh.Web.csproj -c Release -r linux-x64 --self-contained false -o publish/web --no-restore
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
@@ -70,4 +70,3 @@ jobs:
           app-name: ${{ secrets.AZURE_WEBAPP_NAME }}
           publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
           package: publish/web
-          startup-command: dotnet Mesh.Web.dll

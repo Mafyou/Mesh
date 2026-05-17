@@ -1,7 +1,9 @@
 <Solution>
   <Folder Name="/Extras/">
     <File Path=".github/copilot-instructions.md" />
-    <File Path=".github/workflows/CICD.yml" />
+    <File Path=".github/workflows/firmware.yml" />
+    <File Path=".github/workflows/release.yml" />
+    <File Path=".github/workflows/web.yml" />
     <File Path="deploy.ps1" />
     <File Path="design.md" />
     <File Path="README.md" />
