@@ -9,7 +9,6 @@ public partial class MessagesPage : ContentPage
         InitializeComponent();
         _viewModel = viewModel;
         BindingContext = _viewModel;
-        _ = _viewModel.InitializeAsync();
     }
 
     protected override void OnAppearing()

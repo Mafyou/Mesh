@@ -73,7 +73,7 @@ jobs:
           cp android-aab/MeshUnited.aab src/Mesh.Web/Mesh.Web/wwwroot/app/MeshUnited.aab
 
       - name: Publish
-        run: dotnet publish src/Mesh.Web/Mesh.Web/Mesh.Web.csproj -c Release --self-contained false -o publish/web --no-restore
+        run: dotnet publish src/Mesh.Web/Mesh.Web/Mesh.Web.csproj -c Release --self-contained true -r linux-x64 -o publish/web --no-restore
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
