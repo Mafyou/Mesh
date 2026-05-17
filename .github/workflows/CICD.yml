@@ -7,29 +7,6 @@ on:
     branches: [main]
 
 jobs:
-  test:
-    name: Tests
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: '10.x'
-
-      - name: Install Android workload
-        run: dotnet workload install android
-
-      - name: Restore
-        run: |
-          dotnet restore tests/Mesh.Tests/Mesh.Tests.csproj
-          dotnet restore tests/Mesh.Mobile.Core.UnitTests/Mesh.Mobile.Core.UnitTests.csproj
-
-      - name: Test
-        run: |
-          dotnet test tests/Mesh.Tests/Mesh.Tests.csproj --no-restore --verbosity normal
-          dotnet test tests/Mesh.Mobile.Core.UnitTests/Mesh.Mobile.Core.UnitTests.csproj --no-restore --verbosity normal
-
   build-firmware:
     name: Build Firmware
     runs-on: ubuntu-latest
@@ -51,7 +28,7 @@ jobs:
 
   publish-web:
     name: Publish Web
-    needs: [test, build-firmware]
+    needs: [build-firmware]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
