@@ -1,6 +1,3 @@
-using Mesh.Mobile.ViewModels;
-using Plugin.BLE.Abstractions.Contracts;
-
 namespace Mesh.Mobile;
 
 public partial class MainPage : ContentPage

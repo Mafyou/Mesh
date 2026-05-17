@@ -26,3 +26,4 @@ jobs:
     name: Publish Web
     needs: [build-firmware, build-android]
     uses: ./.github/workflows/web.yml
+    secrets: inherit

@@ -17,14 +17,15 @@ public static class MeshCoreProtocol
 
     /// <summary>
     /// Handshake sent immediately after connecting to a MeshCore node.
-    /// Format: [0x01][app_name UTF-8]
+    /// Format: [0x01][0x00 × 7 reserved][app_name UTF-8]
     /// </summary>
     public static byte[] EncodeAppStart()
     {
         var name = Encoding.UTF8.GetBytes(AppName);
-        var packet = new byte[1 + name.Length];
+        var packet = new byte[1 + 7 + name.Length]; // cmd + 7 reserved + name
         packet[0] = CMD_APP_START;
-        name.CopyTo(packet, 1);
+        // bytes 1-7: reserved zeros (already zero from array init)
+        name.CopyTo(packet, 8);
         return packet;
     }
 

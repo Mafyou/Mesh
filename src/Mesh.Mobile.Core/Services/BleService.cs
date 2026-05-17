@@ -9,6 +9,8 @@ public class BleService
     private readonly IBluetoothLE _ble;
     private readonly IAdapter _adapter;
 
+    private readonly SemaphoreSlim _connectLock = new(1, 1);
+
     private IDevice? _connectedDevice;
     private ICharacteristic? _rxCharacteristic;
     private ICharacteristic? _txCharacteristic;
@@ -22,11 +24,14 @@ public class BleService
     public event EventHandler<MeshMessageEventArgs>? MessageReceived;
     public event EventHandler<bool>? ConnectionChanged;
     public event EventHandler? DevicesUpdated;
+    // Fired when a MeshCore handshake write requires BLE bonding.
+    // The UI should inform the user to enter the device PIN when prompted by Android.
+    public event EventHandler? BondingRequired;
 
     public bool IsConnected => _connectedDevice?.State == DeviceState.Connected;
     public bool IsScanning => _adapter.IsScanning;
     public string? ConnectedNodeName => _connectedDevice?.Name;
-    public string? ConnectedNodeId => _connectedDevice?.Id.ToString().ToUpperInvariant();
+    public string? ConnectedNodeId => _connectedDevice is null ? null : $"{_connectedDevice.Id}".ToUpperInvariant();
 
     public BleService()
     {
@@ -72,8 +77,20 @@ public class BleService
 
     public async Task ConnectAsync(IDevice device)
     {
-        await StopScanAsync();
-        await _adapter.ConnectToDeviceAsync(device);
+        // Prevent concurrent connections: auto-connect (TryConnectPreferredAsync) and a
+        // manual tap (NodesPage/MessagesPage) can race and both reach ConnectToDeviceAsync,
+        // which opens two separate GATT sessions on Android.
+        if (!await _connectLock.WaitAsync(0)) return;
+        try
+        {
+            if (IsConnected) return;
+            await StopScanAsync();
+            await _adapter.ConnectToDeviceAsync(device);
+        }
+        finally
+        {
+            _connectLock.Release();
+        }
     }
 
     public async Task<bool> TryConnectPreferredAsync(IReadOnlyList<string> preferredNodeIds, CancellationToken stoppingToken = default)
@@ -143,7 +160,7 @@ public class BleService
 
         return [.. DiscoveredDevices.OrderBy(device =>
         {
-            var nodeId = device.Id.ToString();
+            var nodeId = $"{device.Id}";
             return indexByNode.TryGetValue(nodeId, out var index) ? index : int.MaxValue;
         })];
     }
@@ -205,6 +222,10 @@ public class BleService
 
             _rxCharacteristic = await service.GetCharacteristicAsync(NusRxCharUuid);
             _txCharacteristic = await service.GetCharacteristicAsync(NusTxCharUuid);
+
+            System.Diagnostics.Debug.WriteLine(
+                $"[BLE] RX props={_rxCharacteristic?.Properties}  CanWrite={_rxCharacteristic?.CanWrite}  HasWriteNoRsp={_rxCharacteristic?.Properties.HasFlag(CharacteristicPropertyType.WriteWithoutResponse)}");
+
             if (_txCharacteristic is null)
             {
                 System.Diagnostics.Debug.WriteLine("[BleService] NUS TX characteristic not found");
@@ -215,14 +236,30 @@ public class BleService
             _txCharacteristic.ValueUpdated += OnTxValueUpdated;
             await _txCharacteristic.StartUpdatesAsync();
 
-            if (_isMeshCore && _rxCharacteristic is not null)
+            var txDescriptors = await _txCharacteristic.GetDescriptorsAsync();
+            System.Diagnostics.Debug.WriteLine(
+                $"[BLE] TX descriptors: {txDescriptors.Count} → {string.Join(", ", txDescriptors.Select(d => d.Id))}");
+
+            // Only use write-without-response when PROPERTY_WRITE_NO_RESPONSE is genuinely
+            // present. Plugin.BLE's internal CanWriteWithoutResponse has a quirk where it can
+            // return true even when that flag is absent, so we check the Properties bitmask
+            // directly to avoid silently sending ATT Write Commands to a characteristic that
+            // expects ATT Write Requests (which would cause the remote to silently drop writes).
+            if (_rxCharacteristic is not null &&
+                _rxCharacteristic.Properties.HasFlag(CharacteristicPropertyType.WriteWithoutResponse))
             {
-                var handshake = MeshCoreProtocol.EncodeAppStart();
-                await _rxCharacteristic.WriteAsync(handshake);
-                System.Diagnostics.Debug.WriteLine("[BleService] MeshCore handshake sent");
+                _rxCharacteristic.WriteType = CharacteristicWriteType.WithoutResponse;
             }
 
+            // Signal connected immediately so the UI responds without waiting for the handshake.
+            // For MeshCore, CMD_APP_START requires BLE bonding (ESP_GATT_PERM_WRITE_ENC_MITM);
+            // bonding may take many seconds if the user must enter a PIN in the system dialog.
             ConnectionChanged?.Invoke(this, true);
+
+            if (_isMeshCore && _rxCharacteristic is not null && _connectedDevice is not null)
+            {
+                await SendMeshCoreHandshakeAsync(_connectedDevice, _rxCharacteristic);
+            }
         }
         catch (Exception ex)
         {
@@ -230,6 +267,123 @@ public class BleService
             try { await _adapter.DisconnectDeviceAsync(e.Device); } catch { }
         }
     }
+
+    private async Task SendMeshCoreHandshakeAsync(IDevice device, ICharacteristic rxChar)
+    {
+#if ANDROID
+        // MeshCore RX characteristic requires ESP_GATT_PERM_WRITE_ENC_MITM.  Any write without
+        // a prior bond fails with INSUFFICIENT_AUTHENTICATION.  Initiate bonding explicitly
+        // so the system pairing dialog appears before we attempt the handshake write, giving the
+        // user time to enter the static PIN (printed on the node or displayed on its screen;
+        // default for headless firmware is 123456).
+        var nativeDevice = device.NativeDevice as Android.Bluetooth.BluetoothDevice;
+        if (nativeDevice is not null && nativeDevice.BondState != Android.Bluetooth.Bond.Bonded)
+        {
+            System.Diagnostics.Debug.WriteLine(
+                $"[BleService] MeshCore: bond state={nativeDevice.BondState} — initiating pairing");
+            MainThread.BeginInvokeOnMainThread(() => BondingRequired?.Invoke(this, EventArgs.Empty));
+
+            using var bondCts = new CancellationTokenSource(TimeSpan.FromSeconds(60));
+            var bonded = await EnsureBondedAsync(nativeDevice, bondCts.Token);
+            if (!bonded)
+            {
+                System.Diagnostics.Debug.WriteLine("[BleService] MeshCore: pairing incomplete — handshake aborted");
+                return;
+            }
+            System.Diagnostics.Debug.WriteLine("[BleService] MeshCore: paired — writing handshake");
+        }
+        else
+        {
+            System.Diagnostics.Debug.WriteLine("[BleService] MeshCore: already paired");
+        }
+#endif
+
+        var handshake = MeshCoreProtocol.EncodeAppStart();
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        try
+        {
+            await rxChar.WriteAsync(handshake, cts.Token);
+            System.Diagnostics.Debug.WriteLine("[BleService] MeshCore handshake sent");
+        }
+        catch (OperationCanceledException)
+        {
+            System.Diagnostics.Debug.WriteLine("[BleService] MeshCore handshake: write timed out (10s)");
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[BleService] MeshCore handshake: {ex.GetType().Name}: {ex.Message}");
+        }
+    }
+
+#if ANDROID
+    private static async Task<bool> EnsureBondedAsync(Android.Bluetooth.BluetoothDevice nativeDevice, CancellationToken stoppingToken)
+    {
+        if (nativeDevice.BondState == Android.Bluetooth.Bond.Bonded) return true;
+
+        var tcs = new TaskCompletionSource<bool>();
+        var receiver = new BondStateReceiver(nativeDevice.Address!, tcs);
+        Android.App.Application.Context.RegisterReceiver(
+            receiver,
+            new Android.Content.IntentFilter(Android.Bluetooth.BluetoothDevice.ActionBondStateChanged));
+        try
+        {
+            // If bonding is already in progress (e.g. triggered by a prior failed write), just wait.
+            if (nativeDevice.BondState != Android.Bluetooth.Bond.Bonding)
+            {
+                if (!nativeDevice.CreateBond())
+                {
+                    System.Diagnostics.Debug.WriteLine("[BleService] CreateBond() returned false");
+                    return nativeDevice.BondState == Android.Bluetooth.Bond.Bonded;
+                }
+            }
+            using (stoppingToken.Register(() => tcs.TrySetCanceled()))
+            {
+                return await tcs.Task;
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            System.Diagnostics.Debug.WriteLine("[BleService] Bond wait timed out");
+            return false;
+        }
+        finally
+        {
+            try { Android.App.Application.Context.UnregisterReceiver(receiver); } catch { }
+        }
+    }
+
+    private sealed class BondStateReceiver : Android.Content.BroadcastReceiver
+    {
+        private readonly string _address;
+        private readonly TaskCompletionSource<bool> _tcs;
+
+        internal BondStateReceiver(string address, TaskCompletionSource<bool> tcs)
+        {
+            _address = address;
+            _tcs = tcs;
+        }
+
+        public override void OnReceive(Android.Content.Context? context, Android.Content.Intent? intent)
+        {
+#pragma warning disable CA1422
+            var device = intent?.GetParcelableExtra(Android.Bluetooth.BluetoothDevice.ExtraDevice)
+                as Android.Bluetooth.BluetoothDevice;
+#pragma warning restore CA1422
+            if (device?.Address != _address) return;
+
+            var state = (Android.Bluetooth.Bond)(intent?.GetIntExtra(
+                Android.Bluetooth.BluetoothDevice.ExtraBondState,
+                (int)Android.Bluetooth.Bond.None) ?? (int)Android.Bluetooth.Bond.None);
+
+            System.Diagnostics.Debug.WriteLine($"[BleService] Bond state → {state}");
+            if (state == Android.Bluetooth.Bond.Bonded)
+                _tcs.TrySetResult(true);
+            else if (state == Android.Bluetooth.Bond.None)
+                _tcs.TrySetResult(false);
+            // Bond.Bonding = still in progress, keep waiting
+        }
+    }
+#endif
 
     private void OnDeviceDisconnected(object? sender, DeviceEventArgs e)
     {
@@ -274,6 +428,9 @@ public class BleService
 
         if (_isMeshCore)
         {
+            // Temporary: dump every raw BLE notification so we can decode PKT_SELF_INFO format
+            System.Diagnostics.Debug.WriteLine($"[BLE RX] {Convert.ToHexString(data)}");
+
             var msg = MeshCoreProtocol.DecodeNotify(data);
             if (msg is null) return;
 
@@ -317,13 +474,13 @@ public class BleService
 
         for (int i = 0; i < count && (1 + i * 3 + 2) < payload.Length; i++)
         {
-            var id   = payload[1 + i * 3];
+            var id = payload[1 + i * 3];
             var rssi = (sbyte)payload[2 + i * 3];
-            var snr  = (sbyte)payload[3 + i * 3];
+            var snr = (sbyte)payload[3 + i * 3];
 
             var node = GetOrAddNode(id);
-            node.Rssi             = rssi;
-            node.Snr              = snr;
+            node.Rssi = rssi;
+            node.Snr = snr;
             node.IsDirectNeighbor = true;
         }
     }

@@ -30,7 +30,7 @@ public sealed class ShinyNotificationService(IServiceProvider serviceProvider) :
             Channel = ChannelId,
             Payload = new Dictionary<string, string>
             {
-                ["src"] = src.ToString("X2")
+                ["src"] = $"{src:X2}"
             }
         });
     }

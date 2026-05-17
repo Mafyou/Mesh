@@ -1,5 +1,4 @@
 using Mesh.Mobile.Core;
-using Mesh.Mobile.Core.Models;
 
 namespace Mesh.Mobile.ViewModels;
 
@@ -103,6 +102,7 @@ public partial class MainPageViewModel(BleService bleService, SettingsService se
         bleService.MessageReceived += OnMessageReceived;
         bleService.ConnectionChanged += OnConnectionChanged;
         bleService.DevicesUpdated += OnDevicesUpdated;
+        bleService.BondingRequired += OnBondingRequired;
 
         NotificationsEnabled = settingsService.NotificationsEnabled;
         IsConnected = bleService.IsConnected;
@@ -223,7 +223,7 @@ public partial class MainPageViewModel(BleService bleService, SettingsService se
         try
         {
             await bleService.ConnectAsync(device);
-            var nodeId = device.Id.ToString();
+            var nodeId = $"{device.Id}";
             settingsService.LastNodeId = nodeId;
             settingsService.AddPreferredNodeId(nodeId);
             UpdatePreferredNodesLabel();
@@ -277,6 +277,19 @@ public partial class MainPageViewModel(BleService bleService, SettingsService se
         PreferredNodesText = preferred.Any()
             ? $"Nœuds favoris: {string.Join(", ", preferred.Take(3))}"
             : "Nœuds favoris: aucun";
+    }
+
+    private void OnBondingRequired(object? sender, EventArgs e)
+    {
+        MainThread.BeginInvokeOnMainThread(async () =>
+        {
+            await Shell.Current.DisplayAlertAsync(
+                "Association Bluetooth requise",
+                "Ce nœud MeshCore nécessite un appairage sécurisé.\n\n" +
+                "Si une fenêtre système apparaît, entrez le code PIN affiché sur l'écran du nœud " +
+                "(ou 123456 pour les nœuds sans écran).",
+                "OK");
+        });
     }
 
     private static Color GetColor(string key) =>
