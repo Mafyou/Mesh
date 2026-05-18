@@ -8,12 +8,6 @@ public partial class NodesPageViewModel(BleService bleService) : ObservableObjec
 
     public ObservableCollection<IDevice> DiscoveredDevices => bleService.DiscoveredDevices;
 
-    /* Mesh nodes seen over LoRa (with telemetry), excluding the broadcast placeholder */
-    public IEnumerable<NodeContact> MeshNodes =>
-        bleService.KnownNodes.Where(n => n.Id != 0xFF);
-
-    public int MeshNodesCount => bleService.KnownNodes.Count(n => n.Id != 0xFF);
-
     [ObservableProperty]
     private string _statusText = "Prêt à scanner";
 
@@ -39,14 +33,12 @@ public partial class NodesPageViewModel(BleService bleService) : ObservableObjec
     {
         bleService.DevicesUpdated += OnDevicesUpdated;
         bleService.ConnectionChanged += OnConnectionChanged;
-        bleService.KnownNodes.CollectionChanged += OnKnownNodesChanged;
     }
 
     public void Unsubscribe()
     {
         bleService.DevicesUpdated -= OnDevicesUpdated;
         bleService.ConnectionChanged -= OnConnectionChanged;
-        bleService.KnownNodes.CollectionChanged -= OnKnownNodesChanged;
     }
 
     [RelayCommand]
@@ -109,12 +101,6 @@ public partial class NodesPageViewModel(BleService bleService) : ObservableObjec
     private void OnDevicesUpdated(object? sender, EventArgs e)
     {
         StatusText = $"{bleService.DiscoveredDevices.Count} appareil(s) détecté(s)";
-    }
-
-    private void OnKnownNodesChanged(object? sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
-    {
-        OnPropertyChanged(nameof(MeshNodes));
-        OnPropertyChanged(nameof(MeshNodesCount));
     }
 
     [RelayCommand]

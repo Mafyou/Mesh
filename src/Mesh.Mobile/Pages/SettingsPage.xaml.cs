@@ -14,6 +14,13 @@ public partial class SettingsPage : ContentPage
     protected override void OnAppearing()
     {
         base.OnAppearing();
+        _viewModel.Subscribe();
         _viewModel.Refresh();
+    }
+
+    protected override void OnDisappearing()
+    {
+        base.OnDisappearing();
+        _viewModel.Unsubscribe();
     }
 }

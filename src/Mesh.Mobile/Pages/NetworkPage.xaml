@@ -2,115 +2,118 @@
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:vm="clr-namespace:Mesh.Mobile.ViewModels"
+             xmlns:toolkit="http://schemas.microsoft.com/dotnet/2022/maui/toolkit"
              x:Class="Mesh.Mobile.Pages.NetworkPage"
              x:DataType="vm:NetworkPageViewModel"
-             Title="État du réseau">
+             Title="Réseau">
 
-    <Grid RowDefinitions="Auto,*"
-          RowSpacing="0">
+    <ContentPage.Resources>
+        <toolkit:InvertedBoolConverter x:Key="InvertBool" />
+    </ContentPage.Resources>
+
+    <Grid RowDefinitions="Auto,*" RowSpacing="0">
 
         <StackLayout Grid.Row="0"
                      Padding="16,16,16,12"
                      Spacing="4"
                      BackgroundColor="{AppThemeBinding Light={StaticResource LightCardBg}, Dark={StaticResource DarkCardBg}}">
-            <Label Text="Vue d'ensemble rapide de la connectivité Mesh."
+            <Label Text="État de la connectivité Mesh."
                    Style="{StaticResource TextSmall}" />
         </StackLayout>
-
-        <BoxView Grid.Row="0"
-                 Style="{StaticResource Separator}"
-                 Margin="0"
-                 VerticalOptions="End" />
+        <BoxView Grid.Row="0" Style="{StaticResource Separator}" Margin="0" VerticalOptions="End" />
 
         <ScrollView Grid.Row="1">
-            <StackLayout Padding="16"
-                         Spacing="16">
+            <StackLayout Padding="16" Spacing="16">
 
-                <Border Style="{StaticResource CardDefault}">
-                    <Grid ColumnDefinitions="*,Auto"
-                          ColumnSpacing="12">
-                        <StackLayout Grid.Column="0" Spacing="4">
-                            <Label Text="Bluetooth LE"
-                                   Style="{StaticResource TitleCard}" />
-                            <Label Text="État de la connexion locale"
+                <!-- BLE connection -->
+                <StackLayout Spacing="8">
+                    <Label Text="Bluetooth LE" Style="{StaticResource TitleCard}" />
+                    <Border Style="{StaticResource CardDefault}">
+                        <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
+                            <Border Grid.Column="0"
+                                    WidthRequest="12" HeightRequest="12" Padding="0"
+                                    BackgroundColor="{Binding BleStatusColor}"
+                                    StrokeThickness="0" StrokeShape="RoundRectangle 6"
+                                    VerticalOptions="Center" />
+                            <Label Grid.Column="1"
+                                   Text="{Binding BleStatusText}"
+                                   Style="{StaticResource TextSmall}"
+                                   VerticalOptions="Center" />
+                            <Label Grid.Column="2"
+                                   Text="{Binding NodeCount, StringFormat='{0} vu(s)'}"
+                                   Style="{StaticResource MicroLabel}"
+                                   VerticalOptions="Center" />
+                        </Grid>
+                    </Border>
+                </StackLayout>
+
+                <!-- Radio parameters (visible only when connected) -->
+                <StackLayout Spacing="8" IsVisible="{Binding IsNodeConnected}">
+                    <Label Text="Radio LoRa" Style="{StaticResource TitleCard}" />
+                    <Border Style="{StaticResource CardDefault}">
+                        <StackLayout Spacing="4">
+                            <Label Text="Paramètres du nœud actif"
+                                   Style="{StaticResource MicroLabel}" />
+                            <Label Text="{Binding RadioSummary}"
+                                   Style="{StaticResource TextSmall}"
+                                   FontAttributes="Bold" />
+                        </StackLayout>
+                    </Border>
+                    <Border Style="{StaticResource CardDefault}">
+                        <StackLayout Spacing="4">
+                            <Label Text="Firmware"
+                                   Style="{StaticResource MicroLabel}" />
+                            <Label Text="{Binding FirmwareSummary}"
                                    Style="{StaticResource TextSmall}" />
                         </StackLayout>
-                        <Border Grid.Column="1"
-                                WidthRequest="12"
-                                HeightRequest="12"
-                                Padding="0"
-                                BackgroundColor="{Binding BleStatusColor}"
-                                StrokeThickness="0"
-                                StrokeShape="RoundRectangle 6"
-                                VerticalOptions="Center" />
-                    </Grid>
-                </Border>
+                    </Border>
+                </StackLayout>
 
-                <Border Style="{StaticResource CardDefault}">
-                    <Grid ColumnDefinitions="*,Auto"
-                          ColumnSpacing="12">
-                        <StackLayout Grid.Column="0" Spacing="4">
-                            <Label Text="Réseau LoRa"
-                                   Style="{StaticResource TitleCard}" />
-                            <Label Text="Portee estimee : ~2.5 km  |  868 MHz  |  SF10"
-                                   Style="{StaticResource TextSmall}" />
-                        </StackLayout>
-                        <Border Grid.Column="1"
-                                WidthRequest="12"
-                                HeightRequest="12"
-                                Padding="0"
-                                BackgroundColor="{AppThemeBinding Light={StaticResource LightAccentLora}, Dark={StaticResource DarkAccentLora}}"
-                                StrokeThickness="0"
-                                StrokeShape="RoundRectangle 6"
-                                VerticalOptions="Center" />
-                    </Grid>
-                </Border>
-
-                <Border Style="{StaticResource CardDefault}">
-                    <StackLayout Spacing="8">
-                        <Label Text="Qualité du signal"
-                               Style="{StaticResource TitleCard}" />
-                        <ProgressBar Progress="{Binding SignalProgress}"
-                                     HeightRequest="6" />
-                        <Label Text="{Binding SignalText}"
-                               Style="{StaticResource TextSmall}"
-                               HorizontalTextAlignment="End" />
+                <!-- Prompt when not connected -->
+                <Border Style="{StaticResource CardDefault}"
+                        IsVisible="{Binding IsNodeConnected, Converter={StaticResource InvertBool}}">
+                    <StackLayout Spacing="6" HorizontalOptions="Center" Padding="8">
+                        <Label Text="Aucun nœud connecté"
+                               Style="{StaticResource TitleCard}"
+                               HorizontalOptions="Center" />
+                        <Label Text="Connectez-vous à un nœud MeshCore depuis l'onglet Nœuds."
+                               Style="{StaticResource MicroLabel}"
+                               HorizontalTextAlignment="Center" />
                     </StackLayout>
                 </Border>
 
-                <Border Style="{StaticResource CardDefault}">
-                    <Grid RowDefinitions="Auto,Auto"
-                          RowSpacing="12">
-                        <Label Grid.Row="0"
-                               Text="Statistiques reseau"
-                               Style="{StaticResource TitleCard}" />
-                        <Grid Grid.Row="1"
-                              ColumnDefinitions="*,*"
-                              ColumnSpacing="12">
-                            <StackLayout Grid.Column="0" Spacing="4">
-                                <Label Text="Nœuds détectés"
-                                       Style="{StaticResource TextSmall}" />
+                <BoxView Style="{StaticResource Separator}" />
+
+                <!-- Stats -->
+                <StackLayout Spacing="8">
+                    <Label Text="Session" Style="{StaticResource TitleCard}" />
+                    <Grid ColumnDefinitions="*,*" ColumnSpacing="12">
+                        <Border Grid.Column="0" Style="{StaticResource CardDefault}">
+                            <StackLayout Spacing="4">
+                                <Label Text="Nœuds BLE détectés"
+                                       Style="{StaticResource MicroLabel}" />
                                 <Label Text="{Binding NodeCount}"
-                                       FontSize="22"
-                                       FontAttributes="Bold"
+                                       FontSize="28" FontAttributes="Bold"
                                        TextColor="{AppThemeBinding Light={StaticResource LightAccentLora}, Dark={StaticResource DarkAccentLora}}" />
                             </StackLayout>
-                            <StackLayout Grid.Column="1" Spacing="4">
+                        </Border>
+                        <Border Grid.Column="1" Style="{StaticResource CardDefault}">
+                            <StackLayout Spacing="4">
                                 <Label Text="Messages reçus"
-                                       Style="{StaticResource TextSmall}" />
+                                       Style="{StaticResource MicroLabel}" />
                                 <Label Text="{Binding MessageCount}"
-                                       FontSize="22"
-                                       FontAttributes="Bold"
+                                       FontSize="28" FontAttributes="Bold"
                                        TextColor="{AppThemeBinding Light={StaticResource LightPrimaryNetwork}, Dark={StaticResource DarkPrimaryNetwork}}" />
                             </StackLayout>
-                        </Grid>
+                        </Border>
                     </Grid>
-                </Border>
+                </StackLayout>
+
+                <BoxView Style="{StaticResource Separator}" />
 
                 <Button Text="{Binding ScanButtonText}"
                         Command="{Binding ScanCommand}"
-                        Style="{StaticResource ButtonPrimary}" />
-
+                        Style="{StaticResource ButtonSecondary}" />
                 <Label Text="{Binding ScanStatusText}"
                        Style="{StaticResource MicroLabel}"
                        HorizontalOptions="Center" />

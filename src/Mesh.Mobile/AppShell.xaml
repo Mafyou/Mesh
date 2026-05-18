@@ -11,21 +11,25 @@
     <TabBar>
         <ShellContent
             Title="Messages"
+            Icon="tab_messages.svg"
             ContentTemplate="{DataTemplate pages:MessagesPage}"
             Route="MessagesPage" />
 
         <ShellContent
             Title="Réseau"
+            Icon="tab_network.svg"
             ContentTemplate="{DataTemplate pages:NetworkPage}"
             Route="NetworkPage" />
 
         <ShellContent
             Title="Nœuds"
+            Icon="tab_nodes.svg"
             ContentTemplate="{DataTemplate pages:NodesPage}"
             Route="NodesPage" />
 
         <ShellContent
             Title="Paramètres"
+            Icon="tab_settings.svg"
             ContentTemplate="{DataTemplate pages:SettingsPage}"
             Route="SettingsPage" />
     </TabBar>

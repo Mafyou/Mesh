@@ -15,18 +15,18 @@ public class BleService
     private ICharacteristic? _rxCharacteristic;
     private ICharacteristic? _txCharacteristic;
     private CancellationTokenSource? _scanCts;
-    private bool _isMeshCore;
 
     public ObservableCollection<IDevice> DiscoveredDevices { get; } = new();
-    public ObservableCollection<NodeContact> KnownNodes { get; } =
-        [new NodeContact { Id = 0xFF, IsSelected = true }];
 
     public event EventHandler<MeshMessageEventArgs>? MessageReceived;
     public event EventHandler<bool>? ConnectionChanged;
     public event EventHandler? DevicesUpdated;
-    // Fired when a MeshCore handshake write requires BLE bonding.
-    // The UI should inform the user to enter the device PIN when prompted by Android.
     public event EventHandler? BondingRequired;
+    public event EventHandler<MeshCoreNodeInfo>? NodeInfoReceived;
+    public event EventHandler<MeshCoreDeviceInfo>? DeviceInfoReceived;
+
+    public MeshCoreNodeInfo? ConnectedNodeInfo { get; private set; }
+    public MeshCoreDeviceInfo? ConnectedDeviceInfo { get; private set; }
 
     public bool IsConnected => _connectedDevice?.State == DeviceState.Connected;
     public bool IsScanning => _adapter.IsScanning;
@@ -133,18 +133,12 @@ public class BleService
         }
     }
 
-    public async Task SendAsync(byte dst, byte channel, string text)
+    public async Task SendAsync(byte channel, string text)
     {
         if (_rxCharacteristic is null)
-        {
-            throw new InvalidOperationException("Not connected to a Mesh node.");
-        }
+            throw new InvalidOperationException("Not connected to a MeshCore node.");
 
-        var packet = _isMeshCore
-            ? MeshCoreProtocol.EncodeMessage(channel, text)
-            : MeshProtocol.EncodeWrite(dst, channel, text);
-
-        await _rxCharacteristic.WriteAsync(packet);
+        await _rxCharacteristic.WriteAsync(MeshCoreProtocol.EncodeMessage(channel, text));
     }
 
     private IReadOnlyList<IDevice> OrderByPreference(IReadOnlyList<string> preferredNodeIds)
@@ -181,15 +175,13 @@ public class BleService
 
     private static bool AdvertisesNusService(IDevice device)
     {
-        // Accept our own firmware nodes and MeshCore nodes by name prefix (fast path)
+        // Fast path: MeshCore nodes advertise by name prefix
         if (!string.IsNullOrWhiteSpace(device.Name) &&
-            (device.Name.StartsWith("Mesh-", StringComparison.OrdinalIgnoreCase) ||
-             device.Name.StartsWith("MeshCore-", StringComparison.OrdinalIgnoreCase)))
+            device.Name.StartsWith("MeshCore-", StringComparison.OrdinalIgnoreCase))
             return true;
 
-        // Accept any device that advertises the NUS service UUID.
-        // NimBLE places the 128-bit UUID in the scan response, not the primary advertisement;
-        // Plugin.BLE merges both into AdvertisementRecords, so we can still match here.
+        // NimBLE puts the 128-bit NUS UUID in the scan response, not the primary advertisement;
+        // Plugin.BLE merges both into AdvertisementRecords so we can still match here.
         var nusBytes = NusServiceUuid.ToByteArray();
         return device.AdvertisementRecords.Any(r =>
             (r.Type == AdvertisementRecordType.UuidsComplete128Bit ||
@@ -209,7 +201,6 @@ public class BleService
     private async void OnDeviceConnected(object? sender, DeviceEventArgs e)
     {
         _connectedDevice = e.Device;
-        _isMeshCore = MeshCoreProtocol.IsMeshCoreDevice(e.Device.Name);
         try
         {
             var service = await e.Device.GetServiceAsync(NusServiceUuid);
@@ -223,9 +214,6 @@ public class BleService
             _rxCharacteristic = await service.GetCharacteristicAsync(NusRxCharUuid);
             _txCharacteristic = await service.GetCharacteristicAsync(NusTxCharUuid);
 
-            System.Diagnostics.Debug.WriteLine(
-                $"[BLE] RX props={_rxCharacteristic?.Properties}  CanWrite={_rxCharacteristic?.CanWrite}  HasWriteNoRsp={_rxCharacteristic?.Properties.HasFlag(CharacteristicPropertyType.WriteWithoutResponse)}");
-
             if (_txCharacteristic is null)
             {
                 System.Diagnostics.Debug.WriteLine("[BleService] NUS TX characteristic not found");
@@ -235,10 +223,6 @@ public class BleService
 
             _txCharacteristic.ValueUpdated += OnTxValueUpdated;
             await _txCharacteristic.StartUpdatesAsync();
-
-            var txDescriptors = await _txCharacteristic.GetDescriptorsAsync();
-            System.Diagnostics.Debug.WriteLine(
-                $"[BLE] TX descriptors: {txDescriptors.Count} → {string.Join(", ", txDescriptors.Select(d => d.Id))}");
 
             // Only use write-without-response when PROPERTY_WRITE_NO_RESPONSE is genuinely
             // present. Plugin.BLE's internal CanWriteWithoutResponse has a quirk where it can
@@ -252,14 +236,12 @@ public class BleService
             }
 
             // Signal connected immediately so the UI responds without waiting for the handshake.
-            // For MeshCore, CMD_APP_START requires BLE bonding (ESP_GATT_PERM_WRITE_ENC_MITM);
+            // CMD_APP_START requires BLE bonding (ESP_GATT_PERM_WRITE_ENC_MITM);
             // bonding may take many seconds if the user must enter a PIN in the system dialog.
             ConnectionChanged?.Invoke(this, true);
 
-            if (_isMeshCore && _rxCharacteristic is not null && _connectedDevice is not null)
-            {
+            if (_rxCharacteristic is not null && _connectedDevice is not null)
                 await SendMeshCoreHandshakeAsync(_connectedDevice, _rxCharacteristic);
-            }
         }
         catch (Exception ex)
         {
@@ -308,10 +290,25 @@ public class BleService
         catch (OperationCanceledException)
         {
             System.Diagnostics.Debug.WriteLine("[BleService] MeshCore handshake: write timed out (10s)");
+            return;
         }
         catch (Exception ex)
         {
             System.Diagnostics.Debug.WriteLine($"[BleService] MeshCore handshake: {ex.GetType().Name}: {ex.Message}");
+            return;
+        }
+
+        // Request device info immediately after the handshake.
+        // The node will reply asynchronously with PKT_DEVICE_INFO (0x0D).
+        try
+        {
+            using var qCts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            await rxChar.WriteAsync(MeshCoreProtocol.EncodeDeviceQuery(), qCts.Token);
+            System.Diagnostics.Debug.WriteLine("[BleService] CMD_DEVICE_QUERY sent");
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[BleService] CMD_DEVICE_QUERY: {ex.GetType().Name}: {ex.Message}");
         }
     }
 
@@ -407,18 +404,8 @@ public class BleService
         _connectedDevice = null;
         _rxCharacteristic = null;
         _txCharacteristic = null;
-        _isMeshCore = false;
-    }
-
-    private NodeContact GetOrAddNode(byte id)
-    {
-        var node = KnownNodes.FirstOrDefault(n => n.Id == id);
-        if (node is null)
-        {
-            node = new NodeContact { Id = id };
-            KnownNodes.Add(node);
-        }
-        return node;
+        ConnectedNodeInfo = null;
+        ConnectedDeviceInfo = null;
     }
 
     private void OnTxValueUpdated(object? sender, CharacteristicUpdatedEventArgs e)
@@ -426,62 +413,40 @@ public class BleService
         var data = e.Characteristic.Value;
         if (data is null || data.Length < 1) return;
 
-        if (_isMeshCore)
+        if (data[0] == MeshCoreProtocol.PKT_SELF_INFO)
         {
-            // Temporary: dump every raw BLE notification so we can decode PKT_SELF_INFO format
-            System.Diagnostics.Debug.WriteLine($"[BLE RX] {Convert.ToHexString(data)}");
-
-            var msg = MeshCoreProtocol.DecodeNotify(data);
-            if (msg is null) return;
-
-            MainThread.BeginInvokeOnMainThread(() =>
-                MessageReceived?.Invoke(this, new MeshMessageEventArgs(
-                    0x00, msg.Value.Text, msg.Value.Channel, msg.Value.SentAt)));
+            var info = MeshCoreProtocol.ParseSelfInfo(data);
+            if (info is not null)
+            {
+                ConnectedNodeInfo = info;
+                System.Diagnostics.Debug.WriteLine(
+                    $"[BleService] PKT_SELF_INFO: {info.DeviceName}  {info.RadioSummary}");
+                MainThread.BeginInvokeOnMainThread(() =>
+                    NodeInfoReceived?.Invoke(this, info));
+            }
             return;
         }
 
-        if (data.Length < 3) return;
-        var packet = MeshProtocol.DecodeNotify(data);
-        if (packet is null) return;
-
-        MainThread.BeginInvokeOnMainThread(() =>
+        if (data[0] == MeshCoreProtocol.PKT_DEVICE_INFO)
         {
-            var node = GetOrAddNode(packet.Value.Src);
-
-            switch (packet.Value.Type)
+            var devInfo = MeshCoreProtocol.ParseDeviceInfo(data);
+            if (devInfo is not null)
             {
-                case MeshPacketType.Ping:
-                    node.ApplyPingPayload(data.AsSpan(3));
-                    break;
-
-                case MeshPacketType.Neighbors:
-                    ApplyNeighborsPayload(data.AsSpan(3));
-                    break;
-
-                default:
-                    MessageReceived?.Invoke(this, new MeshMessageEventArgs(
-                        packet.Value.Src, packet.Value.Text,
-                        packet.Value.Channel, packet.Value.SentAt, packet.Value.Type));
-                    break;
+                ConnectedDeviceInfo = devInfo;
+                System.Diagnostics.Debug.WriteLine(
+                    $"[BleService] PKT_DEVICE_INFO: {devInfo.FirmwareVersionString}  PIN={devInfo.BlePinDisplay}");
+                MainThread.BeginInvokeOnMainThread(() =>
+                    DeviceInfoReceived?.Invoke(this, devInfo));
             }
-        });
-    }
-
-    private void ApplyNeighborsPayload(ReadOnlySpan<byte> payload)
-    {
-        if (payload.Length < 1) return;
-        var count = payload[0];
-
-        for (int i = 0; i < count && (1 + i * 3 + 2) < payload.Length; i++)
-        {
-            var id = payload[1 + i * 3];
-            var rssi = (sbyte)payload[2 + i * 3];
-            var snr = (sbyte)payload[3 + i * 3];
-
-            var node = GetOrAddNode(id);
-            node.Rssi = rssi;
-            node.Snr = snr;
-            node.IsDirectNeighbor = true;
+            return;
         }
+
+        var msg = MeshCoreProtocol.DecodeNotify(data);
+        if (msg is null) return;
+
+        // 0xFF = "unknown network sender" — channel messages have no sender ID in MeshCore
+        MainThread.BeginInvokeOnMainThread(() =>
+            MessageReceived?.Invoke(this, new MeshMessageEventArgs(
+                0xFF, msg.Value.Text, msg.Value.Channel, msg.Value.SentAt)));
     }
 }

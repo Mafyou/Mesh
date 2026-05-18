@@ -16,10 +16,11 @@ public static class MauiProgram
 
         builder.Services.AddSingleton<BleService>();
         builder.Services.AddSingleton<SettingsService>();
+        builder.Services.AddSingleton<MessageRepository>();
         builder.Services.AddSingleton<IMeshNotificationService, ShinyNotificationService>();
 
         builder.Services.AddSingleton<MainPageViewModel>();
-        builder.Services.AddTransient<NetworkPageViewModel>();
+        builder.Services.AddSingleton<NetworkPageViewModel>();
         builder.Services.AddTransient<NodesPageViewModel>();
         builder.Services.AddTransient<SettingsPageViewModel>();
 

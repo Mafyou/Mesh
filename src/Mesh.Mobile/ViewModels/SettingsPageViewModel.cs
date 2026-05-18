@@ -1,3 +1,5 @@
+using Mesh.Mobile.Core.Models;
+
 namespace Mesh.Mobile.ViewModels;
 
 public partial class SettingsPageViewModel(SettingsService settingsService, BleService bleService) : ObservableObject
@@ -20,7 +22,30 @@ public partial class SettingsPageViewModel(SettingsService settingsService, BleS
     [ObservableProperty]
     private Color _connectedDotColor = GetColor("StatusDisconnected");
 
+    [ObservableProperty]
+    private bool _isNodeInfoVisible;
+
+    [ObservableProperty]
+    private string _nodeRadioText = string.Empty;
+
+    [ObservableProperty]
+    private string _nodePublicKeyText = string.Empty;
+
+    [ObservableProperty]
+    private bool _isDeviceInfoVisible;
+
+    [ObservableProperty]
+    private string _nodeFirmwareText = string.Empty;
+
+    [ObservableProperty]
+    private string _nodeBlePinText = string.Empty;
+
     public string AppVersion => AppInfo.VersionString;
+
+    partial void OnUserAliasChanged(string value)
+    {
+        settingsService.UserAlias = value?.Trim() ?? string.Empty;
+    }
 
     partial void OnNotificationsEnabledChanged(bool value)
     {
@@ -33,6 +58,28 @@ public partial class SettingsPageViewModel(SettingsService settingsService, BleS
             Application.Current.UserAppTheme = value ? AppTheme.Dark : AppTheme.Light;
     }
 
+    public void Subscribe()
+    {
+        bleService.NodeInfoReceived += OnNodeInfoReceived;
+        bleService.DeviceInfoReceived += OnDeviceInfoReceived;
+    }
+
+    public void Unsubscribe()
+    {
+        bleService.NodeInfoReceived -= OnNodeInfoReceived;
+        bleService.DeviceInfoReceived -= OnDeviceInfoReceived;
+    }
+
+    private void OnNodeInfoReceived(object? sender, MeshCoreNodeInfo info)
+    {
+        MainThread.BeginInvokeOnMainThread(() => ApplyNodeInfo(info));
+    }
+
+    private void OnDeviceInfoReceived(object? sender, MeshCoreDeviceInfo info)
+    {
+        MainThread.BeginInvokeOnMainThread(() => ApplyDeviceInfo(info));
+    }
+
     public void Refresh()
     {
         UserAlias = settingsService.UserAlias;
@@ -43,6 +90,32 @@ public partial class SettingsPageViewModel(SettingsService settingsService, BleS
             ? $"{bleService.ConnectedNodeName}  ·  {bleService.ConnectedNodeId}"
             : "Non connecté";
         ConnectedDotColor = GetColor(connected ? "StatusConnected" : "StatusDisconnected");
+
+        if (bleService.ConnectedNodeInfo is { } info)
+            ApplyNodeInfo(info);
+        else
+            IsNodeInfoVisible = false;
+
+        if (bleService.ConnectedDeviceInfo is { } devInfo)
+            ApplyDeviceInfo(devInfo);
+        else
+            IsDeviceInfoVisible = false;
+    }
+
+    private void ApplyNodeInfo(MeshCoreNodeInfo info)
+    {
+        NodeRadioText = info.RadioSummary;
+        NodePublicKeyText = info.PublicKeyHex;
+        IsNodeInfoVisible = true;
+    }
+
+    private void ApplyDeviceInfo(MeshCoreDeviceInfo info)
+    {
+        NodeFirmwareText = string.IsNullOrWhiteSpace(info.Manufacturer)
+            ? info.FirmwareVersionString
+            : $"{info.FirmwareVersionString}  ·  {info.Manufacturer}";
+        NodeBlePinText = info.BlePinDisplay;
+        IsDeviceInfoVisible = true;
     }
 
     private static Color GetColor(string key) =>
@@ -71,12 +144,6 @@ public partial class SettingsPageViewModel(SettingsService settingsService, BleS
         {
             DiagnosticsStatusText = $"Erreur diagnostic : {ex.Message}";
         }
-    }
-
-    [RelayCommand]
-    private void Save()
-    {
-        settingsService.UserAlias = UserAlias?.Trim() ?? string.Empty;
     }
 
     [RelayCommand]

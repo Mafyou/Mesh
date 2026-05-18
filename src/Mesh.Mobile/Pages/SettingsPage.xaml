@@ -105,6 +105,35 @@
                                    VerticalOptions="Center" />
                         </Grid>
                     </Border>
+                    <Border Style="{StaticResource CardDefault}"
+                            IsVisible="{Binding IsNodeInfoVisible}">
+                        <StackLayout Spacing="6">
+                            <Label Text="Radio"
+                                   Style="{StaticResource TextSmall}" />
+                            <Label Text="{Binding NodeRadioText}"
+                                   Style="{StaticResource MicroLabel}" />
+                            <Label Text="Clé publique"
+                                   Style="{StaticResource TextSmall}"
+                                   Margin="0,4,0,0" />
+                            <Label Text="{Binding NodePublicKeyText}"
+                                   Style="{StaticResource MicroLabel}"
+                                   LineBreakMode="CharacterWrap" />
+                        </StackLayout>
+                    </Border>
+                    <Border Style="{StaticResource CardDefault}"
+                            IsVisible="{Binding IsDeviceInfoVisible}">
+                        <StackLayout Spacing="6">
+                            <Label Text="Firmware"
+                                   Style="{StaticResource TextSmall}" />
+                            <Label Text="{Binding NodeFirmwareText}"
+                                   Style="{StaticResource MicroLabel}" />
+                            <Label Text="PIN BLE"
+                                   Style="{StaticResource TextSmall}"
+                                   Margin="0,4,0,0" />
+                            <Label Text="{Binding NodeBlePinText}"
+                                   Style="{StaticResource MicroLabel}" />
+                        </StackLayout>
+                    </Border>
                 </StackLayout>
 
                 <BoxView Style="{StaticResource Separator}" />
@@ -149,13 +178,6 @@
                             Style="{StaticResource ButtonDanger}" />
                 </StackLayout>
 
-                <BoxView Style="{StaticResource Separator}" />
-
-                <!-- Enregistrer -->
-                <Button Text="Enregistrer"
-                        Command="{Binding SaveCommand}"
-                        Style="{StaticResource ButtonPrimary}"
-                        Margin="0,4,0,8" />
 
             </StackLayout>
         </ScrollView>

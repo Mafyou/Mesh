@@ -40,11 +40,11 @@ public class MessageItemTests
     }
 
     [Fact]
-    public void SrcLabel_BroadcastSrc_ReturnsHexFF()
+    public void SrcLabel_BroadcastSrc_ReturnsReseau()
     {
         var item = new MessageItem(0xFF, "broadcast");
 
-        item.SrcLabel.ShouldBe("0xFF");
+        item.SrcLabel.ShouldBe("Réseau");
     }
 
     [Fact]

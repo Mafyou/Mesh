@@ -9,21 +9,48 @@ on:
       - 'src/Mesh.Mobile/**'
       - 'src/Mesh.Mobile.Core/**'
       - '.github/workflows/release.yml'
+    tags:
+      - 'v*.*.*'
   workflow_dispatch:
 
 jobs:
-  build-firmware:
-    name: Build Firmware
-    uses: ./.github/workflows/firmware.yml
-    secrets: inherit
+  # build-firmware:
+  #   name: Build Firmware
+  #   uses: ./.github/workflows/firmware.yml
+  #   secrets: inherit
 
   build-android:
     name: Build Android AAB
     uses: ./.github/workflows/android.yml
+    with:
+      version: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
     secrets: inherit
 
   publish-web:
     name: Publish Web
-    needs: [build-firmware, build-android]
+    # needs: [build-firmware, build-android]
+    needs: [build-android]
     uses: ./.github/workflows/web.yml
     secrets: inherit
+
+  create-release:
+    name: Create GitHub Release
+    needs: [build-android]
+    if: github.ref_type == 'tag'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download AAB artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: android-aab
+
+      - name: Rename with version
+        run: mv MeshUnited.aab MeshUnited-${{ github.ref_name }}.aab
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: MeshUnited-${{ github.ref_name }}.aab
+          generate_release_notes: true

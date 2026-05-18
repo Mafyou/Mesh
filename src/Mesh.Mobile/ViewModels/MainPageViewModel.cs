@@ -1,8 +1,8 @@
-using Mesh.Mobile.Core;
+using System.Globalization;
 
 namespace Mesh.Mobile.ViewModels;
 
-public partial class MainPageViewModel(BleService bleService, SettingsService settingsService, IMeshNotificationService notificationService) : ObservableObject
+public partial class MainPageViewModel(BleService bleService, SettingsService settingsService, IMeshNotificationService notificationService, MessageRepository messageRepository) : ObservableObject
 {
     private readonly BleService bleService = bleService;
     private readonly SettingsService settingsService = settingsService;
@@ -36,8 +36,12 @@ public partial class MainPageViewModel(BleService bleService, SettingsService se
     [ObservableProperty]
     private bool _isScanning;
 
+    public bool CanSend => IsConnected && !string.IsNullOrWhiteSpace(MessageText);
+
+    partial void OnIsConnectedChanged(bool value)     => OnPropertyChanged(nameof(CanSend));
+    partial void OnMessageTextChanged(string value)   => OnPropertyChanged(nameof(CanSend));
+
     public ObservableCollection<IDevice> DiscoveredDevices => bleService.DiscoveredDevices;
-    public ObservableCollection<NodeContact> KnownNodes => bleService.KnownNodes;
 
     public ObservableCollection<ChannelChip> ChannelChips { get; } =
     [
@@ -59,11 +63,8 @@ public partial class MainPageViewModel(BleService bleService, SettingsService se
         }
     }
 
-    private readonly ObservableCollection<MessageItem> _allMessages = [];
-    public ObservableCollection<MessageItem> Messages { get; } = [];
-
-    [ObservableProperty]
-    private NodeContact _selectedNode = null!;
+    private readonly List<MessageItem> _allMessages = [];
+    public ObservableCollection<ChatLine> Messages { get; } = [];
 
     [RelayCommand]
     private void SelectChannel(ChannelChip chip)
@@ -77,28 +78,44 @@ public partial class MainPageViewModel(BleService bleService, SettingsService se
     private void RefreshMessages()
     {
         Messages.Clear();
+        DateOnly? lastDate = null;
         foreach (var msg in _allMessages.Where(m => m.Channel == _selectedChannel))
-            Messages.Add(msg);
+        {
+            var msgDate = DateOnly.FromDateTime(msg.At.LocalDateTime);
+            if (lastDate is null || msgDate != lastDate)
+            {
+                Messages.Add(new DateLine(FormatDateLabel(msg.At)));
+                lastDate = msgDate;
+            }
+            Messages.Add(new MessageLine(msg));
+        }
     }
 
-    [RelayCommand]
-    private void SelectNode(NodeContact node)
+    private MessageLine AddToMessages(MessageItem item)
     {
-        if (ReferenceEquals(SelectedNode, node)) return;
-        if (SelectedNode is not null) SelectedNode.IsSelected = false;
-        SelectedNode = node;
-        node.IsSelected = true;
+        var lastLine = Messages.OfType<MessageLine>().LastOrDefault();
+        var itemDate = DateOnly.FromDateTime(item.At.LocalDateTime);
+        if (lastLine is null || DateOnly.FromDateTime(lastLine.Item.At.LocalDateTime) != itemDate)
+            Messages.Add(new DateLine(FormatDateLabel(item.At)));
+        var line = new MessageLine(item);
+        Messages.Add(line);
+        return line;
+    }
+
+    private static string FormatDateLabel(DateTimeOffset at)
+    {
+        var today = DateOnly.FromDateTime(DateTimeOffset.Now.LocalDateTime);
+        var date  = DateOnly.FromDateTime(at.LocalDateTime);
+        if (date == today) return "Aujourd'hui";
+        if (date == today.AddDays(-1)) return "Hier";
+        return at.LocalDateTime.ToString("d MMMM", CultureInfo.GetCultureInfo("fr-FR"));
     }
 
     public async Task InitializeAsync()
     {
-        if (_initialized)
-        {
-            return;
-        }
-
+        if (_initialized) return;
         _initialized = true;
-        SelectedNode = bleService.KnownNodes[0]; // broadcast by default
+
         bleService.MessageReceived += OnMessageReceived;
         bleService.ConnectionChanged += OnConnectionChanged;
         bleService.DevicesUpdated += OnDevicesUpdated;
@@ -109,11 +126,12 @@ public partial class MainPageViewModel(BleService bleService, SettingsService se
         await notificationService.EnsurePermissionsAsync();
         UpdatePreferredNodesLabel();
 
-        // Tenter la connexion auto si des nœuds favoris existent
+        foreach (var msg in messageRepository.LoadAll())
+            _allMessages.Add(msg);
+        RefreshMessages();
+
         if (!bleService.IsConnected && settingsService.PreferredNodeIds.Any())
-        {
             await ConnectPreferredAsync();
-        }
     }
 
     [RelayCommand]
@@ -168,11 +186,7 @@ public partial class MainPageViewModel(BleService bleService, SettingsService se
     private async Task SendAsync()
     {
         var text = MessageText?.Trim();
-        if (string.IsNullOrEmpty(text))
-        {
-            return;
-        }
-
+        if (string.IsNullOrEmpty(text)) return;
         if (!bleService.IsConnected)
         {
             StatusText = "Connectez-vous à un nœud Mesh d'abord";
@@ -180,17 +194,21 @@ public partial class MainPageViewModel(BleService bleService, SettingsService se
             return;
         }
 
+        var formatted = settingsService.FormatOutgoing(text);
+        var sent = new MessageItem(0x00, formatted, DateTimeOffset.Now, SelectedChannel);
+        _allMessages.Add(sent);
+        var line = AddToMessages(sent);
+        MessageText = string.Empty;
+
         try
         {
-            var formatted = settingsService.FormatOutgoing(text);
-            await bleService.SendAsync(SelectedNode?.Id ?? 0xFF, SelectedChannel, formatted);
-            var sent = new MessageItem(0x00, formatted, DateTimeOffset.Now, SelectedChannel);
-            _allMessages.Add(sent);
-            Messages.Add(sent);
-            MessageText = string.Empty;
+            await bleService.SendAsync(SelectedChannel, formatted);
+            messageRepository.Append(sent);
+            HapticFeedback.Default.Perform(HapticFeedbackType.Click);
         }
         catch (Exception ex)
         {
+            line.IsFailed = true;
             StatusText = $"Erreur d'envoi : {ex.Message}";
             StatusColor = GetColor("StatusError");
         }
@@ -208,6 +226,13 @@ public partial class MainPageViewModel(BleService bleService, SettingsService se
             StatusText = "Aucun nœud favori joignable";
             StatusColor = GetColor("StatusError");
         }
+    }
+
+    [RelayCommand]
+    private async Task CopyMessageAsync(MessageItem item)
+    {
+        await Clipboard.SetTextAsync(item.MessageBody);
+        HapticFeedback.Default.Perform(HapticFeedbackType.Click);
     }
 
     [RelayCommand]
@@ -254,19 +279,20 @@ public partial class MainPageViewModel(BleService bleService, SettingsService se
     private void OnDevicesUpdated(object? sender, EventArgs e)
     {
         if (bleService.IsScanning)
-        {
             IsNodePickerVisible = true;
-        }
     }
 
     private async void OnMessageReceived(object? sender, MeshMessageEventArgs e)
     {
-        if (e.Type != MeshPacketType.Msg) return;   // PINGs/NEIGHBORS handled in BleService
-
         var item = new MessageItem(e.Src, e.Text, e.SentAt ?? DateTimeOffset.Now, e.Channel);
         _allMessages.Add(item);
-        if (item.Channel == SelectedChannel)
-            Messages.Add(item);
+        messageRepository.Append(item);
+        MainThread.BeginInvokeOnMainThread(() =>
+        {
+            if (item.Channel == SelectedChannel)
+                AddToMessages(item);
+            HapticFeedback.Default.Perform(HapticFeedbackType.Click);
+        });
         if (NotificationsEnabled)
             await notificationService.ShowIncomingMessageAsync(e.Src, e.Text);
     }

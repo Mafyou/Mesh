@@ -8,7 +8,18 @@ on:
       - 'src/Mesh.Mobile.Core/**'
       - '.github/workflows/android.yml'
   workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version tag (e.g. v1.2.3)'
+        required: false
+        default: ''
   workflow_call:
+    inputs:
+      version:
+        description: 'Release version tag (e.g. v1.2.3)'
+        required: false
+        type: string
+        default: ''
     secrets:
       ANDROID_KEYSTORE_BASE64:
         required: true
@@ -31,6 +42,14 @@ jobs:
         with:
           dotnet-version: '10.x'
 
+      - name: Cache NuGet packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/*.csproj') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
+
       - name: Install Android workload
         run: dotnet workload install maui-android
 
@@ -42,27 +61,41 @@ jobs:
           KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
         run: echo "$KEYSTORE_BASE64" | base64 --decode > /tmp/mafyou.keystore
 
+      - name: Set version from tag
+        if: inputs.version != ''
+        run: |
+          VERSION="${{ inputs.version }}"
+          echo "DISPLAY_VERSION=${VERSION#v}" >> $GITHUB_ENV
+          echo "VERSION_CODE=${{ github.run_number }}" >> $GITHUB_ENV
+
       - name: Build signed AAB
         run: |
           dotnet publish src/Mesh.Mobile/Mesh.Mobile.csproj \
             -c Release \
             -f net10.0-android \
+            --no-restore \
             -p:AndroidPackageFormat=aab \
             -p:AndroidKeyStore=true \
             -p:AndroidSigningKeyStore=/tmp/mafyou.keystore \
             "-p:AndroidSigningKeyAlias=Mafyou" \
             "-p:AndroidSigningKeyPass=${{ secrets.ANDROID_KEY_PASSWORD }}" \
             "-p:AndroidSigningStorePass=${{ secrets.ANDROID_KEY_PASSWORD }}" \
+            ${DISPLAY_VERSION:+-p:ApplicationDisplayVersion=$DISPLAY_VERSION} \
+            ${VERSION_CODE:+-p:ApplicationVersion=$VERSION_CODE} \
             -o publish/android
 
       - name: Rename AAB
-        run: find publish/android -name "*.aab" | head -1 | xargs -I{} cp {} publish/android/MeshUnited.aab
+        run: |
+          AAB=$(find publish/android -name "*.aab" -print -quit)
+          [ -n "$AAB" ] || { echo "::error::No .aab found in publish/android"; exit 1; }
+          mv "$AAB" publish/android/MeshUnited.aab
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: android-aab
           path: publish/android/MeshUnited.aab
+          retention-days: 30
 
       - name: Clean up keystore
         if: always()

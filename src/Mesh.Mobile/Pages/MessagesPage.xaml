@@ -3,12 +3,118 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              xmlns:vm="clr-namespace:Mesh.Mobile.ViewModels"
              xmlns:models="clr-namespace:Mesh.Mobile.Core.Models;assembly=Mesh.Mobile.Core"
+             xmlns:conv="clr-namespace:Mesh.Mobile.Converters"
+             xmlns:toolkit="http://schemas.microsoft.com/dotnet/2022/maui/toolkit"
              xmlns:ble="clr-namespace:Plugin.BLE.Abstractions.Contracts;assembly=Plugin.BLE"
              x:Class="Mesh.Mobile.Pages.MessagesPage"
              x:DataType="vm:MainPageViewModel"
              Title="Mesh United">
 
-    <Grid RowDefinitions="Auto,Auto,Auto,Auto,*,Auto"
+    <ContentPage.Resources>
+        <toolkit:InvertedBoolConverter x:Key="InvertBool" />
+
+        <!-- Date separator template -->
+        <DataTemplate x:Key="DateTemplate" x:DataType="models:DateLine">
+            <Grid Padding="0,8">
+                <BoxView HeightRequest="1"
+                         VerticalOptions="Center"
+                         Color="{AppThemeBinding Light=#E5E7EB, Dark=#374151}" />
+                <Border HorizontalOptions="Center"
+                        BackgroundColor="{AppThemeBinding Light={StaticResource LightCardBg}, Dark={StaticResource DarkCardBg}}"
+                        Padding="10,3"
+                        StrokeThickness="0"
+                        StrokeShape="RoundRectangle 10">
+                    <Label Text="{Binding Label}"
+                           FontSize="11"
+                           TextColor="{AppThemeBinding Light=#9CA3AF, Dark=#6B7280}"
+                           FontAttributes="Bold"
+                           HorizontalOptions="Center" />
+                </Border>
+            </Grid>
+        </DataTemplate>
+
+        <!-- Message bubble template -->
+        <DataTemplate x:Key="MessageTemplate" x:DataType="models:MessageLine">
+            <Grid Padding="12,3">
+
+                <!-- Received bubble — left -->
+                <StackLayout IsVisible="{Binding Item.IsRemote}"
+                             HorizontalOptions="Start"
+                             MaximumWidthRequest="290"
+                             Spacing="2">
+                    <Label Text="{Binding Item.SenderAlias}"
+                           FontSize="11"
+                           FontAttributes="Bold"
+                           TextColor="{AppThemeBinding Light={StaticResource LightPrimaryNetwork}, Dark={StaticResource DarkPrimaryNetwork}}"
+                           Margin="4,0,0,0" />
+                    <Border BackgroundColor="{AppThemeBinding Light=#F3F4F6, Dark=#1F2937}"
+                            StrokeThickness="0"
+                            StrokeShape="RoundRectangle 4,18,18,18"
+                            Padding="12,8">
+                        <Border.GestureRecognizers>
+                            <TapGestureRecognizer
+                                NumberOfTapsRequired="2"
+                                Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.CopyMessageCommand}"
+                                CommandParameter="{Binding Item}" />
+                        </Border.GestureRecognizers>
+                        <StackLayout Spacing="4">
+                            <Label Text="{Binding Item.MessageBody}"
+                                   FontSize="15"
+                                   TextColor="{AppThemeBinding Light={StaticResource LightTextPrimary}, Dark={StaticResource DarkTextPrimary}}"
+                                   LineBreakMode="WordWrap" />
+                            <Label Text="{Binding Item.TimeLabel}"
+                                   FontSize="11"
+                                   TextColor="{AppThemeBinding Light=#9CA3AF, Dark=#6B7280}"
+                                   HorizontalOptions="End" />
+                        </StackLayout>
+                    </Border>
+                </StackLayout>
+
+                <!-- Sent bubble — right -->
+                <StackLayout IsVisible="{Binding Item.IsLocal}"
+                             HorizontalOptions="End"
+                             MaximumWidthRequest="290"
+                             Spacing="0">
+                    <Border BackgroundColor="{AppThemeBinding Light={StaticResource LightPrimaryNetwork}, Dark={StaticResource DarkPrimaryNetwork}}"
+                            StrokeThickness="0"
+                            StrokeShape="RoundRectangle 18,18,4,18"
+                            Padding="12,8">
+                        <Border.GestureRecognizers>
+                            <TapGestureRecognizer
+                                NumberOfTapsRequired="2"
+                                Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.CopyMessageCommand}"
+                                CommandParameter="{Binding Item}" />
+                        </Border.GestureRecognizers>
+                        <StackLayout Spacing="4">
+                            <Label Text="{Binding Item.MessageBody}"
+                                   FontSize="15"
+                                   TextColor="White"
+                                   LineBreakMode="WordWrap" />
+                            <StackLayout Orientation="Horizontal"
+                                         HorizontalOptions="End"
+                                         Spacing="4">
+                                <Label Text="⚠"
+                                       FontSize="12"
+                                       TextColor="#FFCC00"
+                                       VerticalOptions="Center"
+                                       IsVisible="{Binding IsFailed}" />
+                                <Label Text="{Binding Item.TimeLabel}"
+                                       FontSize="11"
+                                       TextColor="#CCFFFFFF" />
+                            </StackLayout>
+                        </StackLayout>
+                    </Border>
+                </StackLayout>
+
+            </Grid>
+        </DataTemplate>
+
+        <conv:ChatLineTemplateSelector x:Key="ChatSelector"
+                                       MessageTemplate="{StaticResource MessageTemplate}"
+                                       DateTemplate="{StaticResource DateTemplate}" />
+    </ContentPage.Resources>
+
+    <Grid RowDefinitions="Auto,Auto,Auto,*,Auto"
           RowSpacing="0">
 
         <!-- Barre de connexion compacte -->
@@ -18,7 +124,6 @@
               Padding="12,10"
               BackgroundColor="{AppThemeBinding Light={StaticResource LightCardBg}, Dark={StaticResource DarkCardBg}}">
 
-            <!-- Indicateur d'état -->
             <Border Grid.Column="0"
                     WidthRequest="10"
                     HeightRequest="10"
@@ -34,7 +139,6 @@
                    VerticalOptions="Center"
                    TextColor="{AppThemeBinding Light={StaticResource LightTextSecondary}, Dark={StaticResource DarkTextSecondary}}" />
 
-            <!-- Bouton scan/déconnecter -->
             <Button Grid.Column="2"
                     Text="{Binding ScanButtonText}"
                     FontSize="13"
@@ -81,63 +185,8 @@
             </CollectionView.ItemTemplate>
         </CollectionView>
 
-        <!-- Chips destinataires (visibles seulement si connecté) -->
+        <!-- Chips de canal -->
         <ScrollView Grid.Row="2"
-                    IsVisible="{Binding IsConnected}"
-                    Orientation="Horizontal"
-                    HorizontalScrollBarVisibility="Never"
-                    BackgroundColor="{AppThemeBinding Light={StaticResource LightCardBg}, Dark={StaticResource DarkCardBg}}"
-                    Padding="10,6">
-            <StackLayout Orientation="Horizontal"
-                         Spacing="6"
-                         BindableLayout.ItemsSource="{Binding KnownNodes}">
-                <BindableLayout.ItemTemplate>
-                    <DataTemplate x:DataType="models:NodeContact">
-                        <Border StrokeShape="RoundRectangle 14"
-                                Stroke="{AppThemeBinding Light={StaticResource LightSeparator}, Dark={StaticResource DarkSeparator}}"
-                                StrokeThickness="1.5"
-                                BackgroundColor="Transparent"
-                                Padding="14,5">
-                            <Border.Triggers>
-                                <DataTrigger TargetType="Border"
-                                             Binding="{Binding IsSelected}"
-                                             Value="True">
-                                    <Setter Property="BackgroundColor"
-                                            Value="{AppThemeBinding Light=#2563EB, Dark=#60A5FA}" />
-                                    <Setter Property="StrokeThickness" Value="0" />
-                                </DataTrigger>
-                            </Border.Triggers>
-                            <Border.GestureRecognizers>
-                                <TapGestureRecognizer
-                                    Command="{Binding Source={RelativeSource AncestorType={x:Type ContentPage}}, Path=BindingContext.SelectNodeCommand}"
-                                    CommandParameter="{Binding .}" />
-                            </Border.GestureRecognizers>
-                            <Label Text="{Binding Label}"
-                                   FontSize="13"
-                                   FontAttributes="Bold"
-                                   TextColor="{AppThemeBinding Light={StaticResource LightTextSecondary}, Dark={StaticResource DarkTextSecondary}}">
-                                <Label.Triggers>
-                                    <DataTrigger TargetType="Label"
-                                                 Binding="{Binding IsSelected}"
-                                                 Value="True">
-                                        <Setter Property="TextColor" Value="White" />
-                                    </DataTrigger>
-                                </Label.Triggers>
-                            </Label>
-                        </Border>
-                    </DataTemplate>
-                </BindableLayout.ItemTemplate>
-            </StackLayout>
-        </ScrollView>
-
-        <BoxView Grid.Row="2"
-                 IsVisible="{Binding IsConnected}"
-                 Style="{StaticResource Separator}"
-                 Margin="0"
-                 VerticalOptions="End" />
-
-        <!-- Chips de canal (visibles seulement si connecté) -->
-        <ScrollView Grid.Row="3"
                     IsVisible="{Binding IsConnected}"
                     Orientation="Horizontal"
                     HorizontalScrollBarVisibility="Never"
@@ -185,118 +234,84 @@
             </StackLayout>
         </ScrollView>
 
-        <BoxView Grid.Row="3"
+        <BoxView Grid.Row="2"
                  IsVisible="{Binding IsConnected}"
                  Style="{StaticResource Separator}"
                  Margin="0"
                  VerticalOptions="End" />
 
         <!-- Chat feed -->
-        <CollectionView Grid.Row="4"
+        <CollectionView Grid.Row="3"
                         x:Name="ChatCollectionView"
                         ItemsSource="{Binding Messages}"
+                        ItemTemplate="{StaticResource ChatSelector}"
                         SelectionMode="None"
                         Margin="0"
                         ItemsUpdatingScrollMode="KeepLastItemInView">
 
             <CollectionView.ItemsLayout>
-                <LinearItemsLayout Orientation="Vertical" ItemSpacing="4" />
+                <LinearItemsLayout Orientation="Vertical" ItemSpacing="2" />
             </CollectionView.ItemsLayout>
 
             <CollectionView.EmptyView>
-                <StackLayout Padding="20,60"
-                             Spacing="12"
-                             HorizontalOptions="Center"
-                             VerticalOptions="Center">
-                    <Label Text="💬"
-                           FontSize="48"
-                           HorizontalOptions="Center" />
-                    <Label Text="Aucun message"
-                           Style="{StaticResource TitleCard}"
-                           HorizontalOptions="Center"
-                           HorizontalTextAlignment="Center" />
-                    <Label Text="Connectez-vous à un nœud et envoyez votre premier message."
-                           Style="{StaticResource MicroLabel}"
-                           HorizontalOptions="Center"
-                           HorizontalTextAlignment="Center"
-                           MaximumWidthRequest="260" />
-                </StackLayout>
+                <Grid>
+                    <!-- Connected — no messages yet -->
+                    <StackLayout Padding="20,60"
+                                 Spacing="12"
+                                 HorizontalOptions="Center"
+                                 VerticalOptions="Center"
+                                 IsVisible="{Binding IsConnected}">
+                        <Label Text="💬" FontSize="48" HorizontalOptions="Center" />
+                        <Label Text="Aucun message"
+                               Style="{StaticResource TitleCard}"
+                               HorizontalOptions="Center"
+                               HorizontalTextAlignment="Center" />
+                        <Label Text="Envoyez votre premier message au réseau Mesh !"
+                               Style="{StaticResource MicroLabel}"
+                               HorizontalOptions="Center"
+                               HorizontalTextAlignment="Center"
+                               MaximumWidthRequest="260" />
+                    </StackLayout>
+                    <!-- Not connected -->
+                    <StackLayout Padding="20,60"
+                                 Spacing="12"
+                                 HorizontalOptions="Center"
+                                 VerticalOptions="Center"
+                                 IsVisible="{Binding IsConnected, Converter={StaticResource InvertBool}}">
+                        <Label Text="📡" FontSize="48" HorizontalOptions="Center" />
+                        <Label Text="Non connecté"
+                               Style="{StaticResource TitleCard}"
+                               HorizontalOptions="Center"
+                               HorizontalTextAlignment="Center" />
+                        <Label Text="Allez dans l'onglet Nœuds pour vous connecter à un nœud MeshCore."
+                               Style="{StaticResource MicroLabel}"
+                               HorizontalOptions="Center"
+                               HorizontalTextAlignment="Center"
+                               MaximumWidthRequest="260" />
+                    </StackLayout>
+                </Grid>
             </CollectionView.EmptyView>
 
-            <CollectionView.ItemTemplate>
-                <DataTemplate x:DataType="models:MessageItem">
-                    <Grid Padding="12,3">
-
-                        <!-- Received bubble — left -->
-                        <StackLayout IsVisible="{Binding IsRemote}"
-                                     HorizontalOptions="Start"
-                                     MaximumWidthRequest="280"
-                                     Spacing="0">
-                            <Label Text="{Binding SrcLabel}"
-                                   FontSize="11"
-                                   FontAttributes="Bold"
-                                   TextColor="{AppThemeBinding Light={StaticResource LightPrimaryNetwork}, Dark={StaticResource DarkPrimaryNetwork}}"
-                                   Margin="4,0,0,2" />
-                            <Border BackgroundColor="{AppThemeBinding Light={StaticResource LightBgSecondary}, Dark={StaticResource DarkBgSecondary}}"
-                                    StrokeThickness="0"
-                                    StrokeShape="RoundRectangle 14,14,14,4"
-                                    Padding="12,8">
-                                <StackLayout Spacing="4">
-                                    <Label Text="{Binding Text}"
-                                           FontSize="15"
-                                           TextColor="{AppThemeBinding Light={StaticResource LightTextPrimary}, Dark={StaticResource DarkTextPrimary}}"
-                                           LineBreakMode="WordWrap" />
-                                    <Label Text="{Binding TimeLabel}"
-                                           FontSize="11"
-                                           TextColor="{AppThemeBinding Light={StaticResource LightTextSecondary}, Dark={StaticResource DarkTextSecondary}}"
-                                           HorizontalOptions="End" />
-                                </StackLayout>
-                            </Border>
-                        </StackLayout>
-
-                        <!-- Sent bubble — right -->
-                        <StackLayout IsVisible="{Binding IsLocal}"
-                                     HorizontalOptions="End"
-                                     MaximumWidthRequest="280"
-                                     Spacing="0">
-                            <Border BackgroundColor="{AppThemeBinding Light={StaticResource LightPrimaryNetwork}, Dark={StaticResource DarkPrimaryNetwork}}"
-                                    StrokeThickness="0"
-                                    StrokeShape="RoundRectangle 14,14,4,14"
-                                    Padding="12,8">
-                                <StackLayout Spacing="4">
-                                    <Label Text="{Binding Text}"
-                                           FontSize="15"
-                                           TextColor="White"
-                                           LineBreakMode="WordWrap" />
-                                    <Label Text="{Binding TimeLabel}"
-                                           FontSize="11"
-                                           TextColor="#CCFFFFFF"
-                                           HorizontalOptions="End" />
-                                </StackLayout>
-                            </Border>
-                        </StackLayout>
-
-                    </Grid>
-                </DataTemplate>
-            </CollectionView.ItemTemplate>
         </CollectionView>
 
         <!-- Input bar -->
-        <BoxView Grid.Row="5"
+        <BoxView Grid.Row="4"
                  Style="{StaticResource Separator}"
                  Margin="0"
                  VerticalOptions="Start" />
 
-        <Grid Grid.Row="5"
+        <Grid Grid.Row="4"
               ColumnDefinitions="*,Auto"
               ColumnSpacing="8"
               Padding="12,10"
               BackgroundColor="{AppThemeBinding Light={StaticResource LightCardBg}, Dark={StaticResource DarkCardBg}}">
 
             <Entry Grid.Column="0"
+                   x:Name="MessageEntry"
                    Style="{StaticResource InputDefault}"
                    Keyboard="Chat"
                    Placeholder="Message…"
+                   IsEnabled="{Binding IsConnected}"
                    ReturnType="Send"
                    Text="{Binding MessageText}"
                    ReturnCommand="{Binding SendCommand}" />
@@ -309,6 +324,7 @@
                     WidthRequest="54"
                     HeightRequest="54"
                     Padding="0"
+                    IsEnabled="{Binding CanSend}"
                     Command="{Binding SendCommand}" />
         </Grid>
 
