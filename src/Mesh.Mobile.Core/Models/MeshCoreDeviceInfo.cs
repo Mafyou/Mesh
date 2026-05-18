@@ -11,5 +11,5 @@ public sealed record MeshCoreDeviceInfo(
     bool ClientRepeat,
     byte PathHashMode)
 {
-    public string BlePinDisplay => BlePin.ToString();
+    public string BlePinDisplay => BlePin == 0 ? "none" : BlePin.ToString();
 }

@@ -138,7 +138,17 @@ public class BleService
         if (_rxCharacteristic is null)
             throw new InvalidOperationException("Not connected to a MeshCore node.");
 
-        await _rxCharacteristic.WriteAsync(MeshCoreProtocol.EncodeMessage(channel, text));
+        var packet = MeshCoreProtocol.EncodeMessage(channel, text);
+        System.Diagnostics.Debug.WriteLine($"[BleService] SendMsg ch={channel} len={packet.Length} bytes={Convert.ToHexString(packet)}");
+        try
+        {
+            await _rxCharacteristic.WriteAsync(packet);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[BleService] SendMsg failed: {ex.GetType().Name}: {ex.Message}");
+            throw;
+        }
     }
 
     private IReadOnlyList<IDevice> OrderByPreference(IReadOnlyList<string> preferredNodeIds)
@@ -298,18 +308,8 @@ public class BleService
             return;
         }
 
-        // Request device info immediately after the handshake.
-        // The node will reply asynchronously with PKT_DEVICE_INFO (0x0D).
-        try
-        {
-            using var qCts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
-            await rxChar.WriteAsync(MeshCoreProtocol.EncodeDeviceQuery(), qCts.Token);
-            System.Diagnostics.Debug.WriteLine("[BleService] CMD_DEVICE_QUERY sent");
-        }
-        catch (Exception ex)
-        {
-            System.Diagnostics.Debug.WriteLine($"[BleService] CMD_DEVICE_QUERY: {ex.GetType().Name}: {ex.Message}");
-        }
+        // fw v11 (Apr-2026) pushes PKT_SELF_INFO + PKT_DEVICE_INFO proactively on CCCD write,
+        // before CMD_APP_START is even sent. CMD_DEVICE_QUERY is redundant for this firmware.
     }
 
 #if ANDROID
@@ -384,12 +384,14 @@ public class BleService
 
     private void OnDeviceDisconnected(object? sender, DeviceEventArgs e)
     {
+        System.Diagnostics.Debug.WriteLine($"[BleService] DeviceDisconnected: {e.Device.Name} ({e.Device.Id})");
         CleanupConnection();
         ConnectionChanged?.Invoke(this, false);
     }
 
     private void OnDeviceConnectionLost(object? sender, DeviceErrorEventArgs e)
     {
+        System.Diagnostics.Debug.WriteLine($"[BleService] ConnectionLost: {e.Device.Name} ({e.Device.Id})");
         CleanupConnection();
         ConnectionChanged?.Invoke(this, false);
     }
@@ -413,6 +415,9 @@ public class BleService
         var data = e.Characteristic.Value;
         if (data is null || data.Length < 1) return;
 
+        System.Diagnostics.Debug.WriteLine(
+            $"[BleService] RX type=0x{data[0]:X2} len={data.Length} bytes={Convert.ToHexString(data)}");
+
         if (data[0] == MeshCoreProtocol.PKT_SELF_INFO)
         {
             var info = MeshCoreProtocol.ParseSelfInfo(data);
@@ -420,9 +425,13 @@ public class BleService
             {
                 ConnectedNodeInfo = info;
                 System.Diagnostics.Debug.WriteLine(
-                    $"[BleService] PKT_SELF_INFO: {info.DeviceName}  {info.RadioSummary}");
+                    $"[BleService] PKT_SELF_INFO: '{info.DeviceName}'  txPwr={info.TxPower}dBm  {info.RadioSummary}");
                 MainThread.BeginInvokeOnMainThread(() =>
                     NodeInfoReceived?.Invoke(this, info));
+            }
+            else
+            {
+                System.Diagnostics.Debug.WriteLine($"[BleService] PKT_SELF_INFO parse failed len={data.Length}");
             }
             return;
         }
@@ -434,15 +443,23 @@ public class BleService
             {
                 ConnectedDeviceInfo = devInfo;
                 System.Diagnostics.Debug.WriteLine(
-                    $"[BleService] PKT_DEVICE_INFO: {devInfo.FirmwareVersionString}  PIN={devInfo.BlePinDisplay}");
+                    $"[BleService] PKT_DEVICE_INFO: fw={devInfo.FirmwareVersionNum} build='{devInfo.BuildDate}' PIN={devInfo.BlePinDisplay}");
                 MainThread.BeginInvokeOnMainThread(() =>
                     DeviceInfoReceived?.Invoke(this, devInfo));
+            }
+            else
+            {
+                System.Diagnostics.Debug.WriteLine($"[BleService] PKT_DEVICE_INFO parse failed len={data.Length}");
             }
             return;
         }
 
         var msg = MeshCoreProtocol.DecodeNotify(data);
-        if (msg is null) return;
+        if (msg is null)
+        {
+            System.Diagnostics.Debug.WriteLine($"[BleService] unhandled type=0x{data[0]:X2} len={data.Length}");
+            return;
+        }
 
         // 0xFF = "unknown network sender" — channel messages have no sender ID in MeshCore
         MainThread.BeginInvokeOnMainThread(() =>

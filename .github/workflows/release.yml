@@ -14,11 +14,6 @@ on:
   workflow_dispatch:
 
 jobs:
-  # build-firmware:
-  #   name: Build Firmware
-  #   uses: ./.github/workflows/firmware.yml
-  #   secrets: inherit
-
   build-android:
     name: Build Android AAB
     uses: ./.github/workflows/android.yml
@@ -28,7 +23,6 @@ jobs:
 
   publish-web:
     name: Publish Web
-    # needs: [build-firmware, build-android]
     needs: [build-android]
     uses: ./.github/workflows/web.yml
     secrets: inherit

@@ -15,6 +15,9 @@ public sealed record MeshCoreNodeInfo(
 {
     public string PublicKeyHex => Convert.ToHexString(PublicKey);
 
-    public string RadioSummary =>
-        $"{FrequencyMhz:F3} MHz  BW{BandwidthKhz:F0}  SF{SpreadingFactor}  CR4/{CodingRate}  {TxPower} dBm";
+    public bool HasRadioInfo => FrequencyMhz > 0;
+
+    public string RadioSummary => HasRadioInfo
+        ? $"{FrequencyMhz:F3} MHz  BW{BandwidthKhz:F0}  SF{SpreadingFactor}  CR4/{CodingRate}  {TxPower} dBm"
+        : string.Empty;
 }

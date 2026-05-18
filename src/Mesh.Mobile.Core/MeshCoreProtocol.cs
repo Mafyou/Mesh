@@ -83,39 +83,38 @@ public static class MeshCoreProtocol
 
     /// <summary>
     /// Parses a PKT_SELF_INFO (0x05) notification sent by MeshCore after CMD_APP_START.
-    /// Layout: [0x05][adv_type][tx_pwr][max_tx][pubkey:32][lat:4LE][lon:4LE]
-    ///         [multi_ack][loc_policy][telemetry][manual_add]
-    ///         [freq:4LE][bw:4LE][sf][cr][name UTF-8, null-terminated]
-    /// Frequency raw unit: kHz*1000 → divide by 1000 → MHz.
-    /// Bandwidth raw unit: Hz     → divide by 1000 → kHz.
+    /// Full layout (fw >= some version): [0x05][adv_type][tx_pwr][max_tx][pubkey:32][lat:4LE][lon:4LE]
+    ///   [multi_ack][loc_policy][telemetry][manual_add][freq:4LE][bw:4LE][sf][cr][name UTF-8, null-term]
+    /// Short layout (fw v11, Apr-2026): [0x05][adv_type][tx_pwr][max_tx][pubkey_partial:16] = 20 bytes.
+    /// Fields beyond the received length are zero/empty.
     /// </summary>
     public static MeshCoreNodeInfo? ParseSelfInfo(ReadOnlySpan<byte> data)
     {
-        if (data.Length < 58 || data[0] != PKT_SELF_INFO) return null;
+        if (data.Length < 4 || data[0] != PKT_SELF_INFO) return null;
 
-        var pubKey = data[4..36].ToArray();
-
-        var latRaw  = BinaryPrimitives.ReadInt32LittleEndian(data[36..40]);
-        var lonRaw  = BinaryPrimitives.ReadInt32LittleEndian(data[40..44]);
-        var freqRaw = BinaryPrimitives.ReadUInt32LittleEndian(data[48..52]);
-        var bwRaw   = BinaryPrimitives.ReadUInt32LittleEndian(data[52..56]);
+        var pubKey  = data.Length >= 36 ? data[4..36].ToArray() : (data.Length > 4 ? data[4..].ToArray() : []);
+        var latRaw  = data.Length >= 44 ? BinaryPrimitives.ReadInt32LittleEndian(data[36..40])  : 0;
+        var lonRaw  = data.Length >= 44 ? BinaryPrimitives.ReadInt32LittleEndian(data[40..44])  : 0;
+        var freqRaw = data.Length >= 52 ? BinaryPrimitives.ReadUInt32LittleEndian(data[48..52]) : 0u;
+        var bwRaw   = data.Length >= 56 ? BinaryPrimitives.ReadUInt32LittleEndian(data[52..56]) : 0u;
+        var sf      = data.Length >= 57 ? data[56] : (byte)0;
+        var cr      = data.Length >= 58 ? data[57] : (byte)0;
 
         var nameSpan = data.Length > 58 ? data[58..] : ReadOnlySpan<byte>.Empty;
-        // Strip optional null terminator from the C string
         var nullIdx = nameSpan.IndexOf((byte)0);
         if (nullIdx >= 0) nameSpan = nameSpan[..nullIdx];
 
         return new MeshCoreNodeInfo(
-            DeviceName:    nameSpan.IsEmpty ? string.Empty : Encoding.UTF8.GetString(nameSpan),
-            PublicKey:     pubKey,
-            FrequencyMhz:  freqRaw / 1000f,
-            BandwidthKhz:  bwRaw   / 1000f,
-            SpreadingFactor: data[56],
-            CodingRate:    data[57],
-            TxPower:       (sbyte)data[2],
-            MaxTxPower:    (sbyte)data[3],
-            Latitude:      latRaw  / 1_000_000f,
-            Longitude:     lonRaw  / 1_000_000f
+            DeviceName:      nameSpan.IsEmpty ? string.Empty : Encoding.UTF8.GetString(nameSpan),
+            PublicKey:       pubKey,
+            FrequencyMhz:    freqRaw / 1000f,
+            BandwidthKhz:    bwRaw   / 1000f,
+            SpreadingFactor: sf,
+            CodingRate:      cr,
+            TxPower:         (sbyte)data[2],
+            MaxTxPower:      data.Length >= 4 ? (sbyte)data[3] : (sbyte)0,
+            Latitude:        latRaw  / 1_000_000f,
+            Longitude:       lonRaw  / 1_000_000f
         );
     }
 
@@ -126,18 +125,19 @@ public static class MeshCoreProtocol
     public static byte[] EncodeDeviceQuery() => [CMD_DEVICE_QUERY, 0x01];
 
     /// <summary>
-    /// Parses a PKT_DEVICE_INFO (0x0D) response (82 bytes min).
-    /// Layout: [0x0D][fw_ver][max_contacts/2][max_grp_ch][pin:4LE]
-    ///         [build_date:12][manufacturer:40][fw_ver_str:20][client_repeat][path_hash_mode]
+    /// Parses a PKT_DEVICE_INFO (0x0D) response.
+    /// Short layout (fw v11, Apr-2026, 20 bytes): [0x0D][fw_ver][max_contacts/2][max_grp_ch][pin:4LE][build_date:12]
+    /// Full layout (82 bytes): appends [manufacturer:40][fw_ver_str:20][client_repeat][path_hash_mode]
+    /// Fields beyond the received length are empty/false/0.
     /// </summary>
     public static MeshCoreDeviceInfo? ParseDeviceInfo(ReadOnlySpan<byte> data)
     {
-        if (data.Length < 82 || data[0] != PKT_DEVICE_INFO) return null;
+        if (data.Length < 20 || data[0] != PKT_DEVICE_INFO) return null;
 
         var pin    = BinaryPrimitives.ReadUInt32LittleEndian(data[4..8]);
-        var build  = NullTermStr(data[8..20]);
-        var manuf  = NullTermStr(data[20..60]);
-        var verStr = NullTermStr(data[60..80]);
+        var build  = NullTermStr(data[8..Math.Min(20, data.Length)]);
+        var manuf  = data.Length >= 60 ? NullTermStr(data[20..60]) : string.Empty;
+        var verStr = data.Length >= 80 ? NullTermStr(data[60..80]) : string.Empty;
 
         return new MeshCoreDeviceInfo(
             FirmwareVersionNum:    data[1],
@@ -147,8 +147,8 @@ public static class MeshCoreProtocol
             BuildDate:             build,
             Manufacturer:          manuf,
             FirmwareVersionString: verStr,
-            ClientRepeat:          data[80] != 0,
-            PathHashMode:          data[81]);
+            ClientRepeat:          data.Length > 80 && data[80] != 0,
+            PathHashMode:          data.Length > 81 ? data[81] : (byte)0);
     }
 
     private static string NullTermStr(ReadOnlySpan<byte> data)
